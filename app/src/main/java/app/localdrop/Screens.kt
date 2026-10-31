@@ -77,6 +77,8 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
     var sheet by remember { mutableStateOf(false) }
     var player by remember { mutableStateOf<String?>(null) }
     var filter by rememberSaveable { mutableIntStateOf(0) }
+    var browser by rememberSaveable { mutableStateOf(false) }
+    var browserStart by rememberSaveable { mutableStateOf("https://m.youtube.com") }
     fun inspect(text: String) {
         val url=LinkRules.extract(text)
         if(url == null) { error="ألصق رابط فيديو صالحًا يبدأ بـ http أو https.";return }
@@ -89,9 +91,10 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
         }
     }
     LaunchedEffect(incoming) { if(incoming.isNotBlank()) inspect(incoming) }
-    Scaffold(containerColor=Palette.Background,bottomBar={ BottomTabs(tab) { tab=it } }) { inset ->
+    Scaffold(containerColor=Palette.Background,bottomBar={ BottomTabs(tab) { tab=it;browser=false } }) { inset ->
         Box(Modifier.fillMaxSize().padding(inset),contentAlignment=Alignment.TopCenter) {
-            when(tab) {
+            if(browser) BrowserScreen(browserStart,busy,onClose={browser=false},onDownload={inspect(it)})
+            else when(tab) {
                 0 -> LazyColumn(Modifier.widthIn(max=600.dp).fillMaxWidth(),
                     contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(20.dp)) {
                     item { Column(verticalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -115,6 +118,14 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
                                 ?.let { if(it.itemCount>0) it.getItemAt(0).text?.toString().orEmpty() else "" }.orEmpty()
                             inspect(input.ifBlank { pasted })
                         },enabled=!busy,icon=R.drawable.ui_clipboard)
+                        OutlinedButton(onClick={
+                            browserStart=BrowserRules.address(input) ?: "https://m.youtube.com"
+                            browser=true
+                        },modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(16.dp),
+                            border=BorderStroke(1.dp,Palette.Outline)) {
+                            LineIcon(R.drawable.ui_link,tint=Palette.Accent)
+                            Spacer(Modifier.width(8.dp));Text("تصفح المواقع داخل التطبيق")
+                        }
                     } }
                     if(permissionError.isNotBlank()) item { Text(permissionError) }
                     if(error.isNotBlank() && !sheet) item { FailurePanel(error) }
@@ -169,7 +180,7 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
         contentColor=Palette.Text,scrimColor=Palette.Background.copy(alpha=0.75f),
         dragHandle={ Box(Modifier.padding(top=12.dp,bottom=8.dp).size(40.dp,4.dp).clip(CircleShape).background(Palette.Outline)) }) {
         if(preview != null) QualitySheet(preview!!,context.app.store.quality,
-            onStart={c -> enqueue(preview!!,c);sheet=false;tab=1},onCancel={sheet=false})
+            onStart={c -> enqueue(preview!!,c);sheet=false;browser=false;tab=1},onCancel={sheet=false})
         else Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             if(busy) {
                 CircularProgressIndicator(color=Palette.Accent,strokeWidth=2.dp)
@@ -179,7 +190,7 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
             if(error.isNotBlank()) {
                 FailurePanel(error)
                 PrimaryButton("إعادة المحاولة",{inspect(input)},enabled=!busy)
-                TextButton(onClick={sheet=false;tab=2},modifier=Modifier.heightIn(min=48.dp)) { Text("فتح إعدادات أداة التنزيل") }
+                TextButton(onClick={sheet=false;browser=false;tab=2},modifier=Modifier.heightIn(min=48.dp)) { Text("فتح إعدادات أداة التنزيل") }
             }
             TextButton(onClick={sheet=false},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("إلغاء",color=Palette.Muted) }
         }
