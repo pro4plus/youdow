@@ -116,12 +116,21 @@ class Extractor(private val context: Context) {
         } else base(d.url)
         // Binding the transfer socket to the Wi-Fi address prevents cellular fallback.
         if(sourceAddress != null) r.addOption("--source-address",sourceAddress)
-        r.addOption("-f",d.selector); r.addOption("--continue"); r.addOption("--no-overwrites")
+        r.addOption("-f",d.selector); r.addOption("--continue")
+        // yt-dlp's default preserves complete downloads, but lets postprocessors replace
+        // an incomplete merge/conversion output on retry. --no-overwrites disabled both.
+        r.addOption("--verbose") // Includes FFmpeg stderr, not only its final error line.
         r.addOption("-o",File(dir,"media.%(ext)s").absolutePath)
         r.addOption("--merge-output-format","mkv"); r.addOption("--newline"); r.addOption("--progress")
         r.addCommands(listOf("--print-to-file","after_move:filepath",File(dir,"result.txt").absolutePath))
         if(d.mp3) { r.addOption("-x"); r.addOption("--audio-format","mp3"); r.addOption("--audio-quality","0") }
-        YoutubeDL.getInstance().execute(r,d.id) { progress, _, _ -> onProgress(progress.toInt().coerceIn(0,100)) }
+        try {
+            YoutubeDL.getInstance().execute(r,d.id) { progress, _, _ -> onProgress(progress.toInt().coerceIn(0,100)) }
+        } catch(e: Exception) {
+            if(e is kotlinx.coroutines.CancellationException || e is YoutubeDL.CanceledException) throw e
+            throw IllegalStateException(
+                "الصيغة: ${d.selector}; MP3: ${d.mp3}; المستخرج: ${if(d.fallback) "NewPipe" else "yt-dlp"}\n${e.message}")
+        }
         val output = File(dir,"result.txt").readLines().lastOrNull { it.isNotBlank() }
             ?: error("No output file")
         File(output).also { require(it.isFile && it.length()>0 && it.canonicalFile.parentFile == dir.canonicalFile) }

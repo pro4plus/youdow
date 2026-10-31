@@ -34,4 +34,20 @@ class LinkRulesTest {
         assertFalse(report.contains("video.test"))
         assertFalse(report.contains("secret"))
     }
+    @Test fun verboseFeaturesDoNotMisclassifyPostprocessing() {
+        val e=Exception("[debug] JS runtimes: quickjs; ejs; private config\nERROR: Postprocessing: Conversion failed!")
+        assertTrue(LinkRules.error(e).contains("بعد التنزيل"))
+        assertFalse(LinkRules.error(e).contains("حدّث"))
+    }
+    @Test fun retainsTailOfLongFfmpegFailure() {
+        val e=Exception("الصيغة: 137+140\n" + "[debug] configuration information\n".repeat(500) +
+            "FFmpeg: Invalid data found when processing input\nERROR: Postprocessing: Conversion failed!")
+        val details=LinkRules.details(e)
+        assertTrue(details.contains("الصيغة: 137+140"))
+        assertTrue(details.contains("Invalid data found"))
+        assertTrue(details.length < 7100)
+    }
+    @Test fun verboseJavascriptBannerDoesNotHide403() {
+        assertTrue(LinkRules.error(Exception("[debug] quickjs ejs\nERROR: HTTP Error 403: Forbidden")).contains("رفض الموقع"))
+    }
 }
