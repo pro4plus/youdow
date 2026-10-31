@@ -48,22 +48,32 @@ class Extractor(private val context: Context) {
         })
         initialized = true
     }
-    suspend fun update(): String = withContext(Dispatchers.IO) { lock.withLock {
-        init(); YoutubeDL.getInstance().updateYoutubeDL(context, YoutubeDL.UpdateChannel.STABLE).toString()
+    suspend fun update(nightly: Boolean = false): String = withContext(Dispatchers.IO) { lock.withLock {
+        init()
+        val result=YoutubeDL.getInstance().updateYoutubeDL(context,
+            if(nightly) YoutubeDL.UpdateChannel.NIGHTLY else YoutubeDL.UpdateChannel.STABLE)
+        when(result) {
+            YoutubeDL.UpdateStatus.DONE -> "تم تحديث أداة التنزيل بنجاح."
+            YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE -> "أداة التنزيل محدثة بالفعل."
+            else -> error("Extractor update returned no result")
+        }
     } }
     suspend fun inspect(url: String): Preview = withContext(Dispatchers.IO) { lock.withLock {
         init()
-        var fallback = false
-        val info = try {
+        try {
             val r = base(url).apply { addOption("--dump-single-json"); addOption("--skip-download") }
-            JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out)
+            preview(url,JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out),false)
         } catch(e: Exception) {
+            if(e is kotlinx.coroutines.CancellationException) throw e
             val msg = e.message.orEmpty().lowercase()
             if (!LinkRules.youtube(url) || listOf("drm","private","login","sign in").any { it in msg }) throw e
-            fallback = true
-            fallbackInfo(url)
+            try { preview(url,fallbackInfo(url),true) }
+            catch(fallbackError: Exception) {
+                if(fallbackError is kotlinx.coroutines.CancellationException) throw fallbackError
+                // Preserve both failures; the previous implementation lost the yt-dlp reason.
+                throw IllegalStateException("yt-dlp: ${e.message}\nNewPipe: ${fallbackError.message}",e)
+            }
         }
-        preview(url,info,fallback)
     } }
     private fun preview(url: String, j: JSONObject, fallback: Boolean): Preview {
         require(!j.optBoolean("has_drm")) { "DRM protected" }
@@ -77,16 +87,18 @@ class Extractor(private val context: Context) {
             .sortedByDescending { it.optInt("height") }.map { f ->
                 val separate=f.optString("acodec","none") == "none"
                 Choice(f.getString("format_id") + if(separate) "+bestaudio" else "",
-                    "${f.optInt("height")}p · ${f.optString("ext")} · video + audio" +
-                        if(separate) " (merge)" else "")
+                    "${f.optInt("height")}p · ${f.optString("ext")} · فيديو وصوت" +
+                        if(separate) " (دمج)" else "")
             }.toMutableList()
-        if(audio.isNotEmpty()) { choices += Choice("bestaudio","Audio · original"); choices += Choice("bestaudio","Audio · MP3",true) }
-        require(choices.isNotEmpty()) { "Unsupported or DRM-only formats" }
+        if(audio.isNotEmpty()) { choices += Choice("bestaudio","صوت · الصيغة الأصلية"); choices += Choice("bestaudio","صوت · MP3",true) }
+        require(choices.isNotEmpty()) { "No downloadable formats available; update extractor" }
         return Preview(url,j.optString("title","Video"),j.optString("thumbnail"),j.optLong("duration"),choices,fallback)
     }
     private fun base(url: String) = YoutubeDLRequest(url).apply {
-        addOption("--no-playlist"); addOption("--no-warnings"); addOption("--socket-timeout",30)
+        addOption("--no-playlist"); addOption("--socket-timeout",30)
         addOption("--retries",3); addOption("--fragment-retries",3)
+        // Official yt-dlp EJS scripts run locally using the library's bundled QuickJS.
+        if(LinkRules.youtube(url)) addOption("--remote-components","ejs:github")
     }
     suspend fun download(d: Download, dir: File, onProgress: (Int)->Unit): File = withContext(Dispatchers.IO) { lock.withLock {
         init(); dir.mkdirs()

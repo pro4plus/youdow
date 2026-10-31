@@ -24,16 +24,16 @@ class DownloadService : Service() {
     override fun onCreate() {
         super.onCreate()
         getSystemService(NotificationManager::class.java).createNotificationChannel(
-            NotificationChannel("downloads","Downloads",NotificationManager.IMPORTANCE_LOW))
+            NotificationChannel("downloads","التنزيلات",NotificationManager.IMPORTANCE_LOW))
     }
     override fun onStartCommand(intent: Intent?,flags: Int,startId: Int): Int {
         ServiceCompat.startForeground(this,1,notification(null),ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         val id=intent?.getStringExtra("id")
         if(id != null) when(intent.action) {
-            "pause" -> pause(id,"Paused")
+            "pause" -> pause(id,"متوقف مؤقتًا")
             "cancel" -> {
                 if(store.get(id)?.status !in listOf(Status.SAVING,Status.COMPLETE)) {
-                    store.change(id) { it.copy(status=Status.CANCELED,message="Canceled") }
+                    store.change(id) { it.copy(status=Status.CANCELED,message="ملغى") }
                     scope.launch(Dispatchers.IO) { app.engine.stop(id) }
                 }
             }
@@ -58,17 +58,17 @@ class DownloadService : Service() {
                 }
                 val next=store.items.value.firstOrNull { it.status == Status.QUEUED } ?: break
                 if(store.wifiOnly && !hasWifi()) {
-                    store.change(next.id) { it.copy(status=Status.PAUSED,message="Wi-Fi required. Connect, then tap Resume.") }
+                    store.change(next.id) { it.copy(status=Status.PAUSED,message="يلزم اتصال واي فاي. اتصل ثم اضغط استئناف.") }
                     continue
                 }
                 active=next.id
-                store.change(next.id) { it.copy(status=Status.RUNNING,message="Downloading") }
+                store.change(next.id) { it.copy(status=Status.RUNNING,message="جارٍ التنزيل") }
                 wake=(getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"LocalDrop:download")
                     .apply { acquire(6*60*60*1000L) }
                 val monitor=scope.launch {
                     while(isActive) {
                         delay(400)
-                        if(store.wifiOnly && !hasWifi()) pause(next.id,"Wi-Fi disconnected. Tap Resume when connected.")
+                        if(store.wifiOnly && !hasWifi()) pause(next.id,"انقطع الواي فاي. اضغط استئناف بعد الاتصال.")
                         // Repeated stop also covers pause during initialization, before the process exists.
                         if(store.get(next.id)?.status in listOf(Status.PAUSED,Status.CANCELED))
                             withContext(Dispatchers.IO) { app.engine.stop(next.id) }
@@ -85,18 +85,18 @@ class DownloadService : Service() {
                     }
                     monitor.cancelAndJoin()
                     if(store.get(next.id)?.status == Status.RUNNING) {
-                        store.change(next.id) { it.copy(status=Status.SAVING,message="Saving to device") }
+                        store.change(next.id) { it.copy(status=Status.SAVING,message="جارٍ الحفظ على الجهاز") }
                         getSystemService(NotificationManager::class.java).notify(1,notification(store.get(next.id)))
                         val publisher=MediaPublisher(this)
                         val uri=withContext(Dispatchers.IO) { publisher.publish(next,source) }
-                        store.change(next.id) { it.copy(status=Status.COMPLETE,progress=100,uri=uri,message="Saved") }
+                        store.change(next.id) { it.copy(status=Status.COMPLETE,progress=100,uri=uri,message="تم الحفظ") }
                         publisher.committed(next.id)
                         withContext(Dispatchers.IO) { directory(next.id).deleteRecursively() }
                     }
                 } catch(e: Exception) {
                     if(e is CancellationException) throw e
                     if(store.get(next.id)?.status in listOf(Status.RUNNING,Status.SAVING))
-                        store.change(next.id) { it.copy(status=Status.FAILED,message=LinkRules.error(e)) }
+                        store.change(next.id) { it.copy(status=Status.FAILED,message=LinkRules.report(e)) }
                 } finally {
                     monitor.cancelAndJoin()
                     if(wake?.isHeld == true) wake?.release()
@@ -124,14 +124,14 @@ class DownloadService : Service() {
     private fun notification(d: Download?): Notification {
         val open=PendingIntent.getActivity(this,0,Intent(this,MainActivity::class.java),PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val b=NotificationCompat.Builder(this,"downloads").setSmallIcon(R.drawable.ic_download)
-            .setContentTitle(d?.title ?: "LocalDrop").setContentText(d?.message ?: "Preparing queue")
+            .setContentTitle(d?.title ?: "LocalDrop").setContentText(d?.message ?: "جارٍ تجهيز التنزيلات")
             .setContentIntent(open).setOnlyAlertOnce(true).setOngoing(d?.status != Status.PAUSED)
         if(d != null) {
             b.setProgress(100,d.progress,d.status == Status.SAVING)
             if(d.status != Status.SAVING) {
                 val action=if(d.status == Status.PAUSED) "resume" else "pause"
-                b.addAction(0,action.replaceFirstChar { it.uppercase() },pending(action,d.id))
-                b.addAction(0,"Cancel",pending("cancel",d.id))
+                b.addAction(0,if(action == "resume") "استئناف" else "إيقاف مؤقت",pending(action,d.id))
+                b.addAction(0,"إلغاء",pending("cancel",d.id))
             }
         }
         return b.build()
@@ -140,13 +140,13 @@ class DownloadService : Service() {
         Intent(this,DownloadService::class.java).setAction(action).putExtra("id",id),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     override fun onTimeout(startId: Int,fgsType: Int) {
-        active?.let { pause(it,"Android time limit reached. Open the app and resume.") }
+        active?.let { pause(it,"انتهت مدة الخدمة المسموحة. افتح التطبيق واضغط استئناف.") }
         stopSelf()
     }
     override fun onDestroy() {
         active?.let { id ->
             if(store.get(id)?.status in listOf(Status.RUNNING,Status.SAVING))
-                store.change(id) { it.copy(status=Status.PAUSED,message="Interrupted. Tap Resume.") }
+                store.change(id) { it.copy(status=Status.PAUSED,message="توقف التنزيل. اضغط استئناف.") }
             Thread { app.engine.stop(id) }.start()
         }
         if(wake?.isHeld == true) wake?.release()

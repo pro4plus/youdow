@@ -11,6 +11,15 @@ import java.io.File
 import java.util.UUID
 
 enum class Status { QUEUED, RUNNING, SAVING, PAUSED, COMPLETE, FAILED, CANCELED }
+val Status.arabic: String get() = when(this) {
+    Status.QUEUED -> "في الانتظار"
+    Status.RUNNING -> "جارٍ التنزيل"
+    Status.SAVING -> "جارٍ الحفظ"
+    Status.PAUSED -> "متوقف مؤقتًا"
+    Status.COMPLETE -> "مكتمل"
+    Status.FAILED -> "تعذر التنزيل"
+    Status.CANCELED -> "ملغى"
+}
 data class Choice(val selector: String, val label: String, val mp3: Boolean = false)
 data class Preview(val url: String, val title: String, val thumbnail: String, val duration: Long,
                    val choices: List<Choice>, val fallback: Boolean)
@@ -68,7 +77,7 @@ class Store(context: Context) {
                 j.getBoolean("mp3"),j.getBoolean("fallback"),j.getString("folder"),
                 if(old in listOf(Status.RUNNING,Status.SAVING,Status.QUEUED)) Status.PAUSED else old,
                 j.optInt("progress"), if(old in listOf(Status.RUNNING,Status.SAVING,Status.QUEUED))
-                    "Interrupted. Tap Resume to continue." else j.optString("message"),j.optString("uri"),j.getLong("created"))
+                    "توقف التنزيل. اضغط استئناف للمتابعة." else j.optString("message"),j.optString("uri"),j.getLong("created"))
         } }
     } catch (_: java.io.FileNotFoundException) { emptyList() }
 }

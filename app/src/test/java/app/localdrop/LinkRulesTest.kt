@@ -17,8 +17,21 @@ class LinkRulesTest {
         assertFalse(LinkRules.youtube("https://attacker.test/youtube.com"))
     }
     @Test fun distinguishesAccessFailures() {
-        assertTrue(LinkRules.error(Exception("Private video")).contains("private"))
-        assertTrue(LinkRules.error(Exception("Sign in to confirm your age")).contains("login"))
+        assertTrue(LinkRules.error(Exception("Private video")).contains("خاص"))
+        assertTrue(LinkRules.error(Exception("Sign in to confirm your age")).contains("تسجيل دخول"))
         assertTrue(LinkRules.error(Exception("DRM protected")).contains("DRM"))
+    }
+    @Test fun classifiesYoutubeFailures() {
+        assertTrue(LinkRules.error(Exception("Sign in to confirm you're not a bot")).contains("يقيّد"))
+        assertTrue(LinkRules.error(Exception("signature challenge failed")).contains("مكونات يوتيوب"))
+        assertTrue(LinkRules.error(Exception("HTTP Error 403")).contains("رفض الموقع"))
+    }
+    @Test fun detailsKeepCauseWithoutSignedUrls() {
+        val e=IllegalStateException("NewPipe failed",Exception("yt-dlp HTTP 403 https://video.test/file?token=secret"))
+        val report=LinkRules.report(e)
+        assertTrue(report.contains("NewPipe failed"))
+        assertTrue(report.contains("yt-dlp HTTP 403"))
+        assertFalse(report.contains("video.test"))
+        assertFalse(report.contains("secret"))
     }
 }

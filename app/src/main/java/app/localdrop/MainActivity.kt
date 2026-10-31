@@ -2,6 +2,9 @@ package app.localdrop
 
 import android.Manifest
 import android.content.ClipboardManager
+import android.content.ClipData
+import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -20,6 +23,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -33,6 +38,13 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(base: Context) {
+        val arabic=java.util.Locale("ar")
+        val config=Configuration(base.resources.configuration).apply {
+            setLocale(arabic); setLayoutDirection(arabic)
+        }
+        super.attachBaseContext(base.createConfigurationContext(config))
+    }
     private var incoming by mutableStateOf("")
     private var clipboardUrl by mutableStateOf<String?>(null)
     private var lastClip: String?=null
@@ -41,7 +53,7 @@ class MainActivity : ComponentActivity() {
     private val permissions=registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
         if(Build.VERSION.SDK_INT > 28 || ContextCompat.checkSelfPermission(this,Manifest.permission.WRITE_EXTERNAL_STORAGE)==PackageManager.PERMISSION_GRANTED)
             pendingDownload?.invoke()
-        else permissionError="Storage permission is needed to save files on Android 8–9."
+        else permissionError="يلزم إذن التخزين لحفظ الملفات على أندرويد 8 و9."
         pendingDownload=null
     }
     private val clipListener=ClipboardManager.OnPrimaryClipChangedListener { if(hasWindowFocus()) readClipboard() }
@@ -49,10 +61,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         consume(intent)
         setContent {
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
             MaterialTheme(colorScheme=lightColorScheme(primary=Color(0xFF286B5A),background=Color(0xFFF6F8F5),surface=Color(0xFFF6F8F5))) {
                 AppScreen(incoming,clipboardUrl,permissionError,
                     onClip={ incoming=it; clipboardUrl=null },onDismissClip={clipboardUrl=null},
                     enqueue={ p,c -> withPermissions { app.store.add(p,c); DownloadService.command(this) } })
+            }
             }
         }
     }
@@ -96,19 +110,22 @@ private fun AppScreen(incoming: String,clip: String?,permissionError: String,onC
     var sheet by remember { mutableStateOf(false) }
     fun inspect(text: String) {
         val url=LinkRules.extract(text)
-        if(url == null) { error="Paste a valid http or https video link."; return }
+        if(url == null) { error="ألصق رابط فيديو صالحًا يبدأ بـ http أو https."; return }
         if(busy) return
         input=url; preview=null; error=""; busy=true; sheet=true
         scope.launch {
             try { preview=context.app.engine.inspect(url) }
-            catch(e: Exception) { error=LinkRules.error(e) }
+            catch(e: Exception) {
+                if(e is kotlinx.coroutines.CancellationException) throw e
+                error=LinkRules.report(e)
+            }
             finally { busy=false }
         }
     }
     LaunchedEffect(incoming) { if(incoming.isNotBlank()) inspect(incoming) }
-    Scaffold(topBar={ TopAppBar(title={ Column { Text("LocalDrop"); Text("Your videos. On your device.",style=MaterialTheme.typography.labelMedium) } }) },
+    Scaffold(topBar={ TopAppBar(title={ Column { Text("LocalDrop"); Text("فيديوهاتك على جهازك.",style=MaterialTheme.typography.labelMedium) } }) },
         bottomBar={ NavigationBar {
-            listOf("Download","Queue","History","Settings").forEachIndexed { index,label ->
+            listOf("تنزيل","القائمة","السجل","الإعدادات").forEachIndexed { index,label ->
                 NavigationBarItem(selected=tab == index,onClick={tab=index},icon={ Text(listOf("↓","≡","↺","⚙")[index]) },label={Text(label)})
             }
         } }) { padding ->
@@ -117,36 +134,38 @@ private fun AppScreen(incoming: String,clip: String?,permissionError: String,onC
             when(tab) {
                 0 -> {
                     Spacer(Modifier.height(20.dp))
-                    Text("Save something worth keeping.",style=MaterialTheme.typography.headlineLarge)
-                    Text("Share a video link to LocalDrop, or paste one here. Processing stays on this device.")
-                    OutlinedTextField(input,{input=it},label={Text("Video link")},modifier=Modifier.fillMaxWidth(),minLines=2)
-                    Button(onClick={inspect(input)},enabled=!busy,modifier=Modifier.fillMaxWidth()) { Text("Find formats") }
+                    Text("احتفظ بما تحب مشاهدته.",style=MaterialTheme.typography.headlineLarge)
+                    Text("شارك رابط الفيديو مع التطبيق أو ألصقه هنا. تتم المعالجة على جهازك.")
+                    OutlinedTextField(input,{input=it},label={Text("رابط الفيديو")},modifier=Modifier.fillMaxWidth(),minLines=2)
+                    Button(onClick={inspect(input)},enabled=!busy,modifier=Modifier.fillMaxWidth()) { Text("عرض الجودات") }
                     if(clip != null) Card {
                         Column(Modifier.padding(16.dp)) {
-                            Text("Link found in clipboard",style=MaterialTheme.typography.titleMedium)
+                            Text("يوجد رابط في الحافظة",style=MaterialTheme.typography.titleMedium)
                             Text(clip,maxLines=2)
-                            Row { TextButton(onClick={onClip(clip)}) { Text("Check link") }; TextButton(onClick=onDismissClip) {Text("Dismiss")} }
+                            Row { TextButton(onClick={onClip(clip)}) { Text("فحص الرابط") }; TextButton(onClick=onDismissClip) {Text("تجاهل")} }
                         }
                     }
                     if(error.isNotBlank() && !sheet) Text(error,color=MaterialTheme.colorScheme.error)
-                    Text("No account • No ads • No analytics",style=MaterialTheme.typography.labelLarge)
+                    Text("بلا حسابات • بلا إعلانات • بلا تتبع",style=MaterialTheme.typography.labelLarge)
                 }
                 1,2 -> {
-                    Text(if(tab == 1) "Download queue" else "Saved & past downloads",style=MaterialTheme.typography.headlineMedium)
+                    Text(if(tab == 1) "قائمة التنزيلات" else "سجل التنزيلات",style=MaterialTheme.typography.headlineMedium)
                     val rows=downloads.filter { (it.status in listOf(Status.COMPLETE,Status.CANCELED)) == (tab == 2) }.reversed()
-                    if(rows.isEmpty()) Text(if(tab == 1) "Your queue is empty. Share a link to get started." else "Your downloads will appear here.")
+                    if(rows.isEmpty()) Text(if(tab == 1) "لا توجد تنزيلات. شارك رابطًا للبدء." else "ستظهر تنزيلاتك هنا.")
                     LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)) {
                         items(rows,key={it.id}) { d -> Card(Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
                                 Text(d.title,style=MaterialTheme.typography.titleMedium,maxLines=2)
-                                Text("${d.status.name.lowercase().replaceFirstChar { it.uppercase() }} · ${d.progress}%")
-                                if(d.message.isNotBlank()) Text(d.message)
+                                Text("${d.status.arabic} · ${d.progress}%")
+                                if(d.message.isNotBlank()) {
+                                    if(d.status == Status.FAILED) FailurePanel(d.message) else Text(d.message)
+                                }
                                 if(d.status == Status.RUNNING) LinearProgressIndicator(progress={d.progress/100f},modifier=Modifier.fillMaxWidth())
                                 Row {
-                                    if(d.status in listOf(Status.QUEUED,Status.RUNNING)) TextButton(onClick={DownloadService.command(context,"pause",d.id)}) {Text("Pause")}
-                                    if(d.status in listOf(Status.PAUSED,Status.FAILED)) TextButton(onClick={DownloadService.command(context,"resume",d.id)}) {Text("Resume")}
-                                    if(d.status !in listOf(Status.SAVING,Status.COMPLETE,Status.CANCELED)) TextButton(onClick={DownloadService.command(context,"cancel",d.id)}) {Text("Cancel")}
-                                    if(d.status == Status.COMPLETE) TextButton(onClick={player=d.uri}) {Text("Play")}
+                                    if(d.status in listOf(Status.QUEUED,Status.RUNNING)) TextButton(onClick={DownloadService.command(context,"pause",d.id)}) {Text("إيقاف مؤقت")}
+                                    if(d.status in listOf(Status.PAUSED,Status.FAILED)) TextButton(onClick={DownloadService.command(context,"resume",d.id)}) {Text("استئناف")}
+                                    if(d.status !in listOf(Status.SAVING,Status.COMPLETE,Status.CANCELED)) TextButton(onClick={DownloadService.command(context,"cancel",d.id)}) {Text("إلغاء")}
+                                    if(d.status == Status.COMPLETE) TextButton(onClick={player=d.uri}) {Text("تشغيل")}
                                 }
                             }
                         } }
@@ -158,19 +177,23 @@ private fun AppScreen(incoming: String,clip: String?,permissionError: String,onC
     }
     if(sheet) ModalBottomSheet(onDismissRequest={sheet=false}) {
         Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(busy) { CircularProgressIndicator(); Text("Finding formats… If a download is running, extraction waits for it to finish.") }
-            if(error.isNotBlank()) Text(error,color=MaterialTheme.colorScheme.error)
+            if(busy) { CircularProgressIndicator(); Text("جارٍ البحث عن الجودات… إذا كان هناك تنزيل نشط فسننتظر اكتماله.") }
+            if(error.isNotBlank()) {
+                FailurePanel(error)
+                TextButton(enabled=!busy,onClick={inspect(input)}) { Text("إعادة المحاولة") }
+                TextButton(onClick={sheet=false;tab=3}) { Text("فتح الإعدادات لتحديث أداة التنزيل") }
+            }
             preview?.let { p ->
-                AsyncImage(p.thumbnail,"Video thumbnail",modifier=Modifier.fillMaxWidth().height(160.dp))
+                AsyncImage(p.thumbnail,"صورة الفيديو",modifier=Modifier.fillMaxWidth().height(160.dp))
                 Text(p.title,style=MaterialTheme.typography.titleLarge)
-                Text("${p.duration/60}:${(p.duration%60).toString().padStart(2,'0')}" + if(p.fallback) " · YouTube fallback" else "")
+                Text("${p.duration/60}:${(p.duration%60).toString().padStart(2,'0')}" + if(p.fallback) " · مستخرج يوتيوب البديل" else "")
                 val preferred=p.choices.firstOrNull {
                     (it.label.substringBefore('p').toIntOrNull() ?: Int.MAX_VALUE) <= store.quality
                 } ?: p.choices.firstOrNull()
-                preferred?.let { c -> Button(onClick={enqueue(p,c); sheet=false; tab=1}) { Text("Download default · ${c.label}") } }
+                preferred?.let { c -> Button(onClick={enqueue(p,c); sheet=false; tab=1}) { Text("تنزيل الجودة الافتراضية · ${c.label}") } }
                 LazyColumn(Modifier.heightIn(max=300.dp)) {
                     items(p.choices) { c -> TextButton(onClick={enqueue(p,c); sheet=false; tab=1},modifier=Modifier.fillMaxWidth()) {
-                        Text(c.label + if(c == preferred) " · Default" else "")
+                        Text(c.label + if(c == preferred) " · افتراضي" else "")
                     } }
                 }
             }
@@ -188,8 +211,8 @@ private fun Settings() {
     var wifi by remember { mutableStateOf(store.wifiOnly) }
     var updating by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf("") }
-    Text("Settings",style=MaterialTheme.typography.headlineMedium)
-    Text("Default quality")
+    Text("الإعدادات",style=MaterialTheme.typography.headlineMedium)
+    Text("الجودة الافتراضية")
     Column {
         listOf(360,720,1080,2160).chunked(2).forEach { qualities ->
             Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
@@ -197,23 +220,57 @@ private fun Settings() {
             }
         }
     }
-    Text("Download folder")
+    Text("مجلد التنزيل")
     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        listOf("Movies","Downloads").forEach { f -> FilterChip(selected=folder==f,onClick={folder=f;store.folder=f},label={Text(f)}) }
+        listOf("Movies","Downloads").forEach { f -> FilterChip(selected=folder==f,onClick={folder=f;store.folder=f},label={Text(if(f == "Movies") "الفيديوهات" else "التنزيلات")}) }
     }
-    Text("Files are saved in the LocalDrop subfolder. Audio is saved in Downloads.")
+    Text("تُحفظ الملفات داخل مجلد LocalDrop. يُحفظ الصوت في مجلد التنزيلات.")
     Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-        Text("Wi-Fi only"); Switch(wifi,{wifi=it;store.wifiOnly=it})
+        Text("واي فاي فقط"); Switch(wifi,{wifi=it;store.wifiOnly=it})
     }
-    Text("Interrupted downloads wait for you to tap Resume.")
+    Text("اضغط استئناف لمتابعة التنزيلات المتوقفة.")
     Button(enabled=!updating,onClick={
-        updating=true; result="Waiting for active extraction/downloads, then checking for an update…"
-        scope.launch { try { result="Extractor: ${context.app.engine.update()}" }
-            catch(e: Exception) { result="Update failed. Check your connection and try again." }
+        updating=true; result="ننتظر اكتمال العمليات النشطة ثم نبحث عن تحديث…"
+        scope.launch { try { result=context.app.engine.update() }
+            catch(e: Exception) {
+                if(e is kotlinx.coroutines.CancellationException) throw e
+                result=LinkRules.report(e)
+            }
             finally { updating=false } }
-    }) {Text(if(updating) "Updating…" else "Update extractor")}
+    }) {Text(if(updating) "جارٍ التحديث…" else "تحديث أداة التنزيل")}
+    TextButton(enabled=!updating,onClick={
+        updating=true; result="جارٍ تثبيت أحدث إصدار تجريبي لأداة التنزيل…"
+        scope.launch {
+            try { result=context.app.engine.update(nightly=true) }
+            catch(e: Exception) {
+                if(e is kotlinx.coroutines.CancellationException) throw e
+                result=LinkRules.report(e)
+            } finally { updating=false }
+        }
+    }) { Text("تجربة تحديث تجريبي إذا استمرت مشكلة يوتيوب") }
+    Text("قد يحتوي الإصدار التجريبي على إصلاحات أحدث وأخطاء جديدة. التحديث العادي يستخدم قناة الإصدارات المستقرة.")
     Text(result)
-    Text("Private, login-required and DRM-protected videos are not supported. Site support depends on the extractor.")
+    Text("لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل الدخول. دعم المواقع يعتمد على أداة التنزيل.")
+}
+
+@Composable
+private fun FailurePanel(report: String) {
+    val context=LocalContext.current
+    var expanded by remember(report) { mutableStateOf(false) }
+    var copied by remember(report) { mutableStateOf(false) }
+    Text(report.substringBefore("\n\nالتفاصيل الفنية:"),color=MaterialTheme.colorScheme.error)
+    Row {
+        TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "إخفاء التفاصيل" else "عرض التفاصيل") }
+        TextButton(onClick={
+            context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("خطأ التنزيل",report))
+            copied=true
+        }) { Text(if(copied) "تم النسخ" else "نسخ الخطأ") }
+    }
+    if(expanded) androidx.compose.foundation.text.selection.SelectionContainer {
+        Text(report.substringAfter("\n\nالتفاصيل الفنية:",report),
+            modifier=Modifier.heightIn(max=140.dp).verticalScroll(rememberScrollState()),
+            style=MaterialTheme.typography.bodySmall)
+    }
 }
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -223,7 +280,7 @@ private fun PlayerDialog(uri: String,onClose: ()->Unit) {
     var error by remember { mutableStateOf("") }
     val player=remember(uri) { ExoPlayer.Builder(context).build().apply {
         addListener(object : Player.Listener { override fun onPlayerError(e: PlaybackException) {
-            error="Cannot play this file. It may have been moved, deleted, or use a codec this device cannot decode."
+            error="تعذر تشغيل الملف. ربما نُقل أو حُذف أو أن ترميزه غير مدعوم على جهازك."
         } })
         setMediaItem(MediaItem.fromUri(uri)); prepare(); playWhenReady=true
     } }
@@ -236,6 +293,6 @@ private fun PlayerDialog(uri: String,onClose: ()->Unit) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    AlertDialog(onDismissRequest=onClose,confirmButton={TextButton(onClick=onClose){Text("Close")}},
+    AlertDialog(onDismissRequest=onClose,confirmButton={TextButton(onClick=onClose){Text("إغلاق")}},
         text={ Column { AndroidView(factory={PlayerView(it).apply { this.player=player }},modifier=Modifier.fillMaxWidth().height(260.dp)); if(error.isNotBlank()) Text(error) } })
 }
