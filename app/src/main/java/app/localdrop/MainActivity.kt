@@ -191,6 +191,7 @@ private fun AppScreen(incoming: String,clip: String?,permissionError: String,onC
             preview?.let { p ->
                 AsyncImage(p.thumbnail,"صورة الفيديو",modifier=Modifier.fillMaxWidth().height(160.dp))
                 Text(p.title,style=MaterialTheme.typography.titleLarge)
+                Text("إذا تعذر دمج الفيديو بسبب توقيته، نحاول إصلاحه بإعادة الترميز. قد يستغرق ذلك وقتًا ويغيّر الجودة قليلًا.",style=MaterialTheme.typography.bodySmall)
                 Text("${p.duration/60}:${(p.duration%60).toString().padStart(2,'0')}" + if(p.fallback) " · مستخرج يوتيوب البديل" else "")
                 val preferred=p.choices.firstOrNull {
                     (it.label.substringBefore('p').toIntOrNull() ?: Int.MAX_VALUE) <= store.quality

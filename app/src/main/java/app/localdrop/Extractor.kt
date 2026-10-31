@@ -115,7 +115,9 @@ class Extractor(private val context: Context) {
         val audio=fs.filter { it.optString("vcodec","none") == "none" && it.optString("acodec","none") != "none" }
         val choices=fs.filter { it.optString("vcodec","none") != "none" &&
             (it.optString("acodec","none") != "none" || audio.isNotEmpty()) }
-            .sortedByDescending { it.optInt("height") }.map { f ->
+            .sortedWith(compareByDescending<JSONObject> { it.optInt("height") }
+                .thenBy { it.optString("protocol").contains("m3u8") }
+                .thenByDescending { it.optDouble("fps",0.0) }).map { f ->
                 val separate=f.optString("acodec","none") == "none"
                 Choice(f.getString("format_id") + if(separate) "+bestaudio" else "",
                     "${f.optInt("height")}p · ${f.optString("ext")} · فيديو وصوت" +
@@ -164,7 +166,18 @@ class Extractor(private val context: Context) {
             YoutubeDL.getInstance().execute(r,d.id) { progress, _, _ -> onProgress(progress.toInt().coerceIn(0,100)) }
         } catch(e: Exception) {
             if(e is kotlinx.coroutines.CancellationException || e is YoutubeDL.CanceledException) throw e
-            throw IllegalStateException(
+            if(MergeRecovery.needed(e.message.orEmpty(),d.selector,d.mp3)) {
+                // One retry only, and never restart a paused/canceled job.
+                if(context.app.store.get(d.id)?.status != Status.RUNNING) throw YoutubeDL.CanceledException()
+                context.app.store.change(d.id) { it.copy(message="جارٍ إصلاح توقيت الفيديو وإعادة ترميزه؛ قد يستغرق ذلك وقتًا ويغيّر الجودة قليلًا.") }
+                r.addOption("--postprocessor-args",MergeRecovery.OUTPUT_ARGS)
+                try {
+                    YoutubeDL.getInstance().execute(r,d.id) { _, _, _ -> }
+                } catch(repairError: Exception) {
+                    if(repairError is kotlinx.coroutines.CancellationException || repairError is YoutubeDL.CanceledException) throw repairError
+                    throw IllegalStateException("فشل إصلاح التوقيت بإعادة الترميز. الصيغة: ${d.selector}\n${repairError.message}")
+                }
+            } else throw IllegalStateException(
                 "الصيغة: ${d.selector}; MP3: ${d.mp3}; المستخرج: ${if(d.fallback) "NewPipe" else "yt-dlp"}\n${e.message}")
         }
         val output = File(dir,"result.txt").readLines().lastOrNull { it.isNotBlank() }

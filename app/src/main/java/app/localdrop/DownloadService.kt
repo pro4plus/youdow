@@ -66,8 +66,15 @@ class DownloadService : Service() {
                 wake=(getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,"LocalDrop:download")
                     .apply { acquire(6*60*60*1000L) }
                 val monitor=scope.launch {
+                    var shownMessage: String?=null
                     while(isActive) {
                         delay(400)
+                        store.get(next.id)?.let { current ->
+                            if(current.message != shownMessage) {
+                                shownMessage=current.message
+                                getSystemService(NotificationManager::class.java).notify(1,notification(current))
+                            }
+                        }
                         if(store.wifiOnly && !hasWifi()) pause(next.id,"انقطع الواي فاي. اضغط استئناف بعد الاتصال.")
                         // Repeated stop also covers pause during initialization, before the process exists.
                         if(store.get(next.id)?.status in listOf(Status.PAUSED,Status.CANCELED))
