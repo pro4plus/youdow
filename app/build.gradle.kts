@@ -10,8 +10,8 @@ android {
         applicationId = "app.localdrop"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "1.6-ar"
+        versionCode = 8
+        versionName = "1.7-ar"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }
     }
     buildFeatures { compose = true }
