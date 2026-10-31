@@ -7,6 +7,8 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.ffmpeg.FFmpeg
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -28,6 +30,13 @@ class Extractor(private val context: Context) {
     // Keep updates from replacing the extractor while it is executing.
     private val lock = Mutex()
     private var initialized = false
+    private val updatePrefs = context.getSharedPreferences("extractor_updates",Context.MODE_PRIVATE)
+    private val mutableUpdateStatus = MutableStateFlow(updatePrefs.getString("status","سيُفحص تحديث الأداة تلقائيًا عند أول استخدام.")!!)
+    val updateStatus = mutableUpdateStatus.asStateFlow()
+    private fun status(text: String) {
+        mutableUpdateStatus.value=text
+        updatePrefs.edit().putString("status",text).apply()
+    }
     private fun init() {
         if (initialized) return
         YoutubeDL.getInstance().init(context)
@@ -48,18 +57,40 @@ class Extractor(private val context: Context) {
         })
         initialized = true
     }
-    suspend fun update(nightly: Boolean = false): String = withContext(Dispatchers.IO) { lock.withLock {
+    suspend fun update(): String = withContext(Dispatchers.IO) { lock.withLock {
         init()
-        val result=YoutubeDL.getInstance().updateYoutubeDL(context,
-            if(nightly) YoutubeDL.UpdateChannel.NIGHTLY else YoutubeDL.UpdateChannel.STABLE)
-        when(result) {
-            YoutubeDL.UpdateStatus.DONE -> "تم تحديث أداة التنزيل بنجاح."
-            YoutubeDL.UpdateStatus.ALREADY_UP_TO_DATE -> "أداة التنزيل محدثة بالفعل."
-            else -> error("Extractor update returned no result")
+        try { updateNightly() } catch(e: Exception) {
+            status("تعذر تحديث الأداة: ${LinkRules.error(e)}")
+            throw e
         }
     } }
+    // Caller holds lock: never replace the executable during extraction or merging.
+    private fun updateNightly(): String {
+        updatePrefs.edit().putLong("attempt",System.currentTimeMillis()).apply()
+        status("جارٍ فحص أحدث إصدار لأداة التنزيل…")
+        val result=YoutubeDL.getInstance().updateYoutubeDL(context,YoutubeDL.UpdateChannel.NIGHTLY)
+            ?: error("Extractor update returned no result")
+        // Read the installed executable, rather than trusting a cached version preference.
+        val request=YoutubeDLRequest(emptyList<String>()).apply { addOption("--version") }
+        val version=YoutubeDL.getInstance().execute(request,"version-check").out.trim()
+        require(version.isNotBlank()) { "Cannot verify extractor version" }
+        val text=if(result == YoutubeDL.UpdateStatus.DONE) "تم تحديث أداة التنزيل: $version"
+            else "أداة التنزيل محدثة: $version"
+        updatePrefs.edit().putLong("success",System.currentTimeMillis()).apply()
+        status(text)
+        return text
+    }
+    private fun ensureUpdated() {
+        if(!UpdatePolicy.due(System.currentTimeMillis(),updatePrefs.getLong("success",0),updatePrefs.getLong("attempt",0))) return
+        try { updateNightly() } catch(e: Exception) {
+            // Network outages must not stop use of a previously installed extractor.
+            if(e is kotlinx.coroutines.CancellationException) throw e
+            status("تعذر التحديث التلقائي؛ سنستخدم الإصدار الموجود ونحاول لاحقًا. ${LinkRules.error(e)}")
+        }
+    }
     suspend fun inspect(url: String): Preview = withContext(Dispatchers.IO) { lock.withLock {
         init()
+        ensureUpdated()
         try {
             val r = base(url).apply { addOption("--dump-single-json"); addOption("--skip-download") }
             preview(url,JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out),false)
@@ -102,6 +133,7 @@ class Extractor(private val context: Context) {
     }
     suspend fun download(d: Download, dir: File, onProgress: (Int)->Unit): File = withContext(Dispatchers.IO) { lock.withLock {
         init(); dir.mkdirs()
+        ensureUpdated()
         val sourceAddress = if(context.app.store.wifiOnly) {
             val cm=context.getSystemService(ConnectivityManager::class.java)
             val network=cm.activeNetwork ?: error("Network unavailable")
@@ -122,6 +154,10 @@ class Extractor(private val context: Context) {
         r.addOption("--verbose") // Includes FFmpeg stderr, not only its final error line.
         r.addOption("-o",File(dir,"media.%(ext)s").absolutePath)
         r.addOption("--merge-output-format","mkv"); r.addOption("--newline"); r.addOption("--progress")
+        // Format 312 arrives as MPEG-TS despite its .mp4 extension. Generate missing
+        // presentation timestamps from decoding timestamps BEFORE reading each input.
+        // Keep stream copying; no video re-encode or invented frame rate.
+        r.addOption("--postprocessor-args","Merger+ffmpeg_i:-fflags +genpts")
         r.addCommands(listOf("--print-to-file","after_move:filepath",File(dir,"result.txt").absolutePath))
         if(d.mp3) { r.addOption("-x"); r.addOption("--audio-format","mp3"); r.addOption("--audio-quality","0") }
         try {

@@ -100,6 +100,7 @@ private fun AppScreen(incoming: String,clip: String?,permissionError: String,onC
     val context=LocalContext.current
     val store=context.app.store
     val downloads by store.items.collectAsStateWithLifecycle()
+    val extractorStatus by context.app.engine.updateStatus.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     var input by rememberSaveable { mutableStateOf("") }
@@ -177,7 +178,11 @@ private fun AppScreen(incoming: String,clip: String?,permissionError: String,onC
     }
     if(sheet) ModalBottomSheet(onDismissRequest={sheet=false}) {
         Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(busy) { CircularProgressIndicator(); Text("جارٍ البحث عن الجودات… إذا كان هناك تنزيل نشط فسننتظر اكتماله.") }
+            if(busy) {
+                CircularProgressIndicator()
+                Text("جارٍ تجهيز الأداة والبحث عن الجودات… إذا كان هناك تنزيل نشط فسننتظر اكتماله.")
+                Text(extractorStatus,style=MaterialTheme.typography.bodySmall)
+            }
             if(error.isNotBlank()) {
                 FailurePanel(error)
                 TextButton(enabled=!busy,onClick={inspect(input)}) { Text("إعادة المحاولة") }
@@ -211,6 +216,7 @@ private fun Settings() {
     var wifi by remember { mutableStateOf(store.wifiOnly) }
     var updating by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf("") }
+    val extractorStatus by context.app.engine.updateStatus.collectAsStateWithLifecycle()
     Text("الإعدادات",style=MaterialTheme.typography.headlineMedium)
     Text("الجودة الافتراضية")
     Column {
@@ -237,18 +243,10 @@ private fun Settings() {
                 result=LinkRules.report(e)
             }
             finally { updating=false } }
-    }) {Text(if(updating) "جارٍ التحديث…" else "تحديث أداة التنزيل")}
-    TextButton(enabled=!updating,onClick={
-        updating=true; result="جارٍ تثبيت أحدث إصدار تجريبي لأداة التنزيل…"
-        scope.launch {
-            try { result=context.app.engine.update(nightly=true) }
-            catch(e: Exception) {
-                if(e is kotlinx.coroutines.CancellationException) throw e
-                result=LinkRules.report(e)
-            } finally { updating=false }
-        }
-    }) { Text("تجربة تحديث تجريبي إذا استمرت مشكلة يوتيوب") }
-    Text("قد يحتوي الإصدار التجريبي على إصلاحات أحدث وأخطاء جديدة. التحديث العادي يستخدم قناة الإصدارات المستقرة.")
+    }) {Text(if(updating) "جارٍ التحديث…" else "فحص التحديث الآن")}
+    Text("تحديث تلقائي عند الاستخدام: مرة كل 24 ساعة عبر القناة التجريبية التي نجحت مع يوتيوب لديك. لا تحتاج للضغط على زر التحديث قبل التنزيل.")
+    Text("إذا فشل الاتصال نستمر بالإصدار الموجود، ونحاول التحديث بعد 15 دقيقة عند الاستخدام التالي. قد تحتوي الإصدارات التجريبية على أخطاء جديدة.")
+    Text(extractorStatus)
     Text(result)
     Text("لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل الدخول. دعم المواقع يعتمد على أداة التنزيل.")
 }
