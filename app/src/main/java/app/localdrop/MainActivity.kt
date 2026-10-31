@@ -20,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -59,10 +61,15 @@ class MainActivity : ComponentActivity() {
     private val clipListener=ClipboardManager.OnPrimaryClipChangedListener { if(hasWindowFocus()) readClipboard() }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        window.statusBarColor=android.graphics.Color.rgb(17,20,26)
+        window.navigationBarColor=android.graphics.Color.rgb(17,20,26)
+        androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).apply {
+            isAppearanceLightStatusBars=false; isAppearanceLightNavigationBars=false
+        }
         consume(intent)
         setContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-            MaterialTheme(colorScheme=lightColorScheme(primary=Color(0xFF286B5A),background=Color(0xFFF6F8F5),surface=Color(0xFFF6F8F5))) {
+            LocalDropTheme {
                 AppScreen(incoming,clipboardUrl,permissionError,
                     onClip={ incoming=it; clipboardUrl=null },onDismissClip={clipboardUrl=null},
                     enqueue={ p,c -> withPermissions { app.store.add(p,c); DownloadService.command(this) } })
@@ -93,177 +100,77 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AppScreen(incoming: String,clip: String?,permissionError: String,onClip: (String)->Unit,
-                      onDismissClip: ()->Unit,enqueue: (Preview,Choice)->Unit) {
+internal fun Settings() {
     val context=LocalContext.current
     val store=context.app.store
-    val downloads by store.items.collectAsStateWithLifecycle()
-    val extractorStatus by context.app.engine.updateStatus.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
-    var tab by rememberSaveable { mutableIntStateOf(0) }
-    var input by rememberSaveable { mutableStateOf("") }
-    var preview by remember { mutableStateOf<Preview?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var error by remember { mutableStateOf("") }
-    var player by remember { mutableStateOf<String?>(null) }
-    var sheet by remember { mutableStateOf(false) }
-    fun inspect(text: String) {
-        val url=LinkRules.extract(text)
-        if(url == null) { error="ألصق رابط فيديو صالحًا يبدأ بـ http أو https."; return }
-        if(busy) return
-        input=url; preview=null; error=""; busy=true; sheet=true
-        scope.launch {
-            try { preview=context.app.engine.inspect(url) }
-            catch(e: Exception) {
-                if(e is kotlinx.coroutines.CancellationException) throw e
-                error=LinkRules.report(e)
-            }
-            finally { busy=false }
-        }
-    }
-    LaunchedEffect(incoming) { if(incoming.isNotBlank()) inspect(incoming) }
-    Scaffold(topBar={ TopAppBar(title={ Column { Text("LocalDrop"); Text("فيديوهاتك على جهازك.",style=MaterialTheme.typography.labelMedium) } }) },
-        bottomBar={ NavigationBar {
-            listOf("تنزيل","القائمة","السجل","الإعدادات").forEachIndexed { index,label ->
-                NavigationBarItem(selected=tab == index,onClick={tab=index},icon={ Text(listOf("↓","≡","↺","⚙")[index]) },label={Text(label)})
-            }
-        } }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).padding(horizontal=20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(permissionError.isNotBlank()) Text(permissionError,color=MaterialTheme.colorScheme.error)
-            when(tab) {
-                0 -> {
-                    Spacer(Modifier.height(20.dp))
-                    Text("احتفظ بما تحب مشاهدته.",style=MaterialTheme.typography.headlineLarge)
-                    Text("شارك رابط الفيديو مع التطبيق أو ألصقه هنا. تتم المعالجة على جهازك.")
-                    OutlinedTextField(input,{input=it},label={Text("رابط الفيديو")},modifier=Modifier.fillMaxWidth(),minLines=2)
-                    Button(onClick={inspect(input)},enabled=!busy,modifier=Modifier.fillMaxWidth()) { Text("عرض الجودات") }
-                    if(clip != null) Card {
-                        Column(Modifier.padding(16.dp)) {
-                            Text("يوجد رابط في الحافظة",style=MaterialTheme.typography.titleMedium)
-                            Text(clip,maxLines=2)
-                            Row { TextButton(onClick={onClip(clip)}) { Text("فحص الرابط") }; TextButton(onClick=onDismissClip) {Text("تجاهل")} }
-                        }
-                    }
-                    if(error.isNotBlank() && !sheet) Text(error,color=MaterialTheme.colorScheme.error)
-                    Text("بلا حسابات • بلا إعلانات • بلا تتبع",style=MaterialTheme.typography.labelLarge)
-                }
-                1,2 -> {
-                    Text(if(tab == 1) "قائمة التنزيلات" else "سجل التنزيلات",style=MaterialTheme.typography.headlineMedium)
-                    val rows=downloads.filter { (it.status in listOf(Status.COMPLETE,Status.CANCELED)) == (tab == 2) }.reversed()
-                    if(rows.isEmpty()) Text(if(tab == 1) "لا توجد تنزيلات. شارك رابطًا للبدء." else "ستظهر تنزيلاتك هنا.")
-                    LazyColumn(verticalArrangement=Arrangement.spacedBy(10.dp)) {
-                        items(rows,key={it.id}) { d -> Card(Modifier.fillMaxWidth()) {
-                            Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
-                                Text(d.title,style=MaterialTheme.typography.titleMedium,maxLines=2)
-                                Text("${d.status.arabic} · ${d.progress}%")
-                                if(d.message.isNotBlank()) {
-                                    if(d.status == Status.FAILED) FailurePanel(d.message) else Text(d.message)
-                                }
-                                if(d.status == Status.RUNNING) LinearProgressIndicator(progress={d.progress/100f},modifier=Modifier.fillMaxWidth())
-                                Row {
-                                    if(d.status in listOf(Status.QUEUED,Status.RUNNING)) TextButton(onClick={DownloadService.command(context,"pause",d.id)}) {Text("إيقاف مؤقت")}
-                                    if(d.status in listOf(Status.PAUSED,Status.FAILED)) TextButton(onClick={DownloadService.command(context,"resume",d.id)}) {Text("استئناف")}
-                                    if(d.status !in listOf(Status.SAVING,Status.COMPLETE,Status.CANCELED)) TextButton(onClick={DownloadService.command(context,"cancel",d.id)}) {Text("إلغاء")}
-                                    if(d.status == Status.COMPLETE) TextButton(onClick={player=d.uri}) {Text("تشغيل")}
-                                }
-                            }
-                        } }
-                    }
-                }
-                3 -> Column(Modifier.verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(12.dp)) { Settings() }
-            }
-        }
-    }
-    if(sheet) ModalBottomSheet(onDismissRequest={sheet=false}) {
-        Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            if(busy) {
-                CircularProgressIndicator()
-                Text("جارٍ تجهيز الأداة والبحث عن الجودات… إذا كان هناك تنزيل نشط فسننتظر اكتماله.")
-                Text(extractorStatus,style=MaterialTheme.typography.bodySmall)
-            }
-            if(error.isNotBlank()) {
-                FailurePanel(error)
-                TextButton(enabled=!busy,onClick={inspect(input)}) { Text("إعادة المحاولة") }
-                TextButton(onClick={sheet=false;tab=3}) { Text("فتح الإعدادات لتحديث أداة التنزيل") }
-            }
-            preview?.let { p ->
-                AsyncImage(p.thumbnail,"صورة الفيديو",modifier=Modifier.fillMaxWidth().height(160.dp))
-                Text(p.title,style=MaterialTheme.typography.titleLarge)
-                Text("إذا تعذر دمج الفيديو بسبب توقيته، نحاول إصلاحه بإعادة الترميز. قد يستغرق ذلك وقتًا ويغيّر الجودة قليلًا.",style=MaterialTheme.typography.bodySmall)
-                Text("${p.duration/60}:${(p.duration%60).toString().padStart(2,'0')}" + if(p.fallback) " · مستخرج يوتيوب البديل" else "")
-                val preferred=p.choices.firstOrNull {
-                    (it.label.substringBefore('p').toIntOrNull() ?: Int.MAX_VALUE) <= store.quality
-                } ?: p.choices.firstOrNull()
-                preferred?.let { c -> Button(onClick={enqueue(p,c); sheet=false; tab=1}) { Text("تنزيل الجودة الافتراضية · ${c.label}") } }
-                LazyColumn(Modifier.heightIn(max=300.dp)) {
-                    items(p.choices) { c -> TextButton(onClick={enqueue(p,c); sheet=false; tab=1},modifier=Modifier.fillMaxWidth()) {
-                        Text(c.label + if(c == preferred) " · افتراضي" else "")
-                    } }
-                }
-            }
-            Spacer(Modifier.height(16.dp))
-        }
-    }
-    player?.let { uri -> PlayerDialog(uri) { player=null } }
-}
-
-@Composable
-private fun Settings() {
-    val context=LocalContext.current; val store=context.app.store; val scope=rememberCoroutineScope()
     var quality by remember { mutableIntStateOf(store.quality) }
     var folder by remember { mutableStateOf(store.folder) }
     var wifi by remember { mutableStateOf(store.wifiOnly) }
     var updating by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf("") }
     val extractorStatus by context.app.engine.updateStatus.collectAsStateWithLifecycle()
-    Text("الإعدادات",style=MaterialTheme.typography.headlineMedium)
-    Text("الجودة الافتراضية")
-    Column {
-        listOf(360,720,1080,2160).chunked(2).forEach { qualities ->
-            Row(horizontalArrangement=Arrangement.spacedBy(6.dp)) {
-                qualities.forEach { q -> FilterChip(selected=quality==q,onClick={quality=q;store.quality=q},label={Text("${q}p")}) }
+    Text("الإعدادات",style=MaterialTheme.typography.headlineLarge)
+    Text("حمّل بالطريقة التي تناسبك.",color=Palette.Muted)
+    Panel {
+        Text("الجودة الافتراضية",style=MaterialTheme.typography.titleMedium)
+        listOf(360,720,1080,2160).chunked(2).forEach { row ->
+            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                row.forEach { q -> Pill(q.toString()+"p",quality==q) {quality=q;store.quality=q} }
             }
         }
     }
-    Text("مجلد التنزيل")
-    Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-        listOf("Movies","Downloads").forEach { f -> FilterChip(selected=folder==f,onClick={folder=f;store.folder=f},label={Text(if(f == "Movies") "الفيديوهات" else "التنزيلات")}) }
-    }
-    Text("تُحفظ الملفات داخل مجلد LocalDrop. يُحفظ الصوت في مجلد التنزيلات.")
-    Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-        Text("واي فاي فقط"); Switch(wifi,{wifi=it;store.wifiOnly=it})
-    }
-    Text("اضغط استئناف لمتابعة التنزيلات المتوقفة.")
-    Button(enabled=!updating,onClick={
-        updating=true; result="ننتظر اكتمال العمليات النشطة ثم نبحث عن تحديث…"
-        scope.launch { try { result=context.app.engine.update() }
-            catch(e: Exception) {
-                if(e is kotlinx.coroutines.CancellationException) throw e
-                result=LinkRules.report(e)
+    Panel {
+        Text("مكان الحفظ",style=MaterialTheme.typography.titleMedium)
+        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+            listOf("Movies","Downloads").forEach { f ->
+                Pill(if(f=="Movies") "الفيديوهات" else "التنزيلات",folder==f) {folder=f;store.folder=f}
             }
-            finally { updating=false } }
-    }) {Text(if(updating) "جارٍ التحديث…" else "فحص التحديث الآن")}
-    Text("تحديث تلقائي عند الاستخدام: مرة كل 24 ساعة عبر القناة التجريبية التي نجحت مع يوتيوب لديك. لا تحتاج للضغط على زر التحديث قبل التنزيل.")
-    Text("إذا فشل الاتصال نستمر بالإصدار الموجود، ونحاول التحديث بعد 15 دقيقة عند الاستخدام التالي. قد تحتوي الإصدارات التجريبية على أخطاء جديدة.")
-    Text(extractorStatus)
-    Text(result)
-    Text("لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل الدخول. دعم المواقع يعتمد على أداة التنزيل.")
+        }
+        Text("داخل مجلد LocalDrop. تُحفظ الملفات الصوتية في التنزيلات.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
+    }
+    Panel {
+        Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("واي فاي فقط",style=MaterialTheme.typography.titleMedium)
+                Text("اضغط استئناف بعد عودة الاتصال.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
+            }
+            Switch(wifi,{wifi=it;store.wifiOnly=it},modifier=Modifier.semantics { contentDescription="التنزيل عبر واي فاي فقط" })
+        }
+    }
+    Panel {
+        Text("أداة التنزيل",style=MaterialTheme.typography.titleMedium)
+        Text("تحديث تلقائي كل 24 ساعة عند الاستخدام، عبر القناة التجريبية.",color=Palette.Muted)
+        Text(extractorStatus,style=MaterialTheme.typography.bodySmall)
+        PrimaryButton(if(updating) "جارٍ فحص التحديث…" else "فحص التحديث الآن",onClick={
+            updating=true;result=""
+            scope.launch {
+                try {result=context.app.engine.update()}
+                catch(e: Exception) {if(e is kotlinx.coroutines.CancellationException) throw e;result=LinkRules.report(e)}
+                finally {updating=false}
+            }
+        },enabled=!updating,icon=R.drawable.ui_refresh)
+        if(result.isNotBlank()) {
+            if(result.contains("التفاصيل الفنية:")) FailurePanel(result) else Text(result)
+        }
+        Text("إذا تعذر التحديث نستمر بالإصدار الموجود ونحاول لاحقًا. قد تحتوي الإصدارات التجريبية على أخطاء جديدة.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
+    }
+    Text("بلا حسابات، بلا إعلانات، بلا تتبع. لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل دخول.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
 }
 
 @Composable
-private fun FailurePanel(report: String) {
+internal fun FailurePanel(report: String) {
     val context=LocalContext.current
     var expanded by remember(report) { mutableStateOf(false) }
     var copied by remember(report) { mutableStateOf(false) }
     Text(report.substringBefore("\n\nالتفاصيل الفنية:"),color=MaterialTheme.colorScheme.error)
     Row {
-        TextButton(onClick={expanded=!expanded}) { Text(if(expanded) "إخفاء التفاصيل" else "عرض التفاصيل") }
+        TextButton(onClick={expanded=!expanded},modifier=Modifier.heightIn(min=48.dp)) { Text(if(expanded) "إخفاء التفاصيل" else "عرض التفاصيل") }
         TextButton(onClick={
             context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("خطأ التنزيل",report))
             copied=true
-        }) { Text(if(copied) "تم النسخ" else "نسخ الخطأ") }
+        },modifier=Modifier.heightIn(min=48.dp)) { Text(if(copied) "تم النسخ" else "نسخ الخطأ") }
     }
     if(expanded) androidx.compose.foundation.text.selection.SelectionContainer {
         Text(report.substringAfter("\n\nالتفاصيل الفنية:",report),
@@ -274,7 +181,7 @@ private fun FailurePanel(report: String) {
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
-private fun PlayerDialog(uri: String,onClose: ()->Unit) {
+internal fun PlayerDialog(uri: String,onClose: ()->Unit) {
     val context=LocalContext.current
     var error by remember { mutableStateOf("") }
     val player=remember(uri) { ExoPlayer.Builder(context).build().apply {

@@ -20,13 +20,14 @@ val Status.arabic: String get() = when(this) {
     Status.FAILED -> "تعذر التنزيل"
     Status.CANCELED -> "ملغى"
 }
-data class Choice(val selector: String, val label: String, val mp3: Boolean = false)
+data class Choice(val selector: String, val label: String, val mp3: Boolean = false, val estimatedBytes: Long = 0)
 data class Preview(val url: String, val title: String, val thumbnail: String, val duration: Long,
                    val choices: List<Choice>, val fallback: Boolean)
 data class Download(val id: String = UUID.randomUUID().toString(), val url: String,
     val title: String, val selector: String, val mp3: Boolean, val fallback: Boolean,
     val folder: String, val status: Status = Status.QUEUED, val progress: Int = 0,
-    val message: String = "", val uri: String = "", val created: Long = System.currentTimeMillis())
+    val message: String = "", val uri: String = "", val created: Long = System.currentTimeMillis(),
+    val thumbnail: String = "", val qualityLabel: String = "", val estimatedBytes: Long = 0)
 
 class LocalDropApp : Application() {
     lateinit var store: Store; private set
@@ -51,7 +52,8 @@ class Store(context: Context) {
         set(v) { prefs.edit().putBoolean("wifi", v).apply() }
     @Synchronized fun add(p: Preview, c: Choice) {
         commit(mutable.value + Download(url=p.url, title=p.title, selector=c.selector,
-            mp3=c.mp3, fallback=p.fallback, folder=folder))
+            mp3=c.mp3, fallback=p.fallback, folder=folder,
+            thumbnail=p.thumbnail,qualityLabel=c.label,estimatedBytes=c.estimatedBytes))
     }
     @Synchronized fun change(id: String, save: Boolean = true, fn: (Download) -> Download) {
         val list = mutable.value.map { if (it.id == id) fn(it) else it }
@@ -64,6 +66,7 @@ class Store(context: Context) {
             put("mp3",d.mp3); put("fallback",d.fallback); put("folder",d.folder)
             put("status",d.status.name); put("progress",d.progress); put("message",d.message)
             put("uri",d.uri); put("created",d.created)
+            put("thumbnail",d.thumbnail); put("qualityLabel",d.qualityLabel); put("estimatedBytes",d.estimatedBytes)
         }) } }.toString().toByteArray()
         val stream = file.startWrite()
         try { stream.write(bytes); file.finishWrite(stream) } catch(e: Exception) { file.failWrite(stream); throw e }
@@ -77,7 +80,8 @@ class Store(context: Context) {
                 j.getBoolean("mp3"),j.getBoolean("fallback"),j.getString("folder"),
                 if(old in listOf(Status.RUNNING,Status.SAVING,Status.QUEUED)) Status.PAUSED else old,
                 j.optInt("progress"), if(old in listOf(Status.RUNNING,Status.SAVING,Status.QUEUED))
-                    "توقف التنزيل. اضغط استئناف للمتابعة." else j.optString("message"),j.optString("uri"),j.getLong("created"))
+                    "توقف التنزيل. اضغط استئناف للمتابعة." else j.optString("message"),j.optString("uri"),j.getLong("created"),
+                j.optString("thumbnail"),j.optString("qualityLabel"),j.optLong("estimatedBytes"))
         } }
     } catch (_: java.io.FileNotFoundException) { emptyList() }
 }

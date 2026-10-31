@@ -121,7 +121,8 @@ class Extractor(private val context: Context) {
                 val separate=f.optString("acodec","none") == "none"
                 Choice(f.getString("format_id") + if(separate) "+bestaudio" else "",
                     "${f.optInt("height")}p · ${f.optString("ext")} · فيديو وصوت" +
-                        if(separate) " (دمج)" else "")
+                        if(separate) " (دمج)" else "", estimatedBytes=if(separate) 0 else
+                            f.optLong("filesize",f.optLong("filesize_approx",0)))
             }.toMutableList()
         if(audio.isNotEmpty()) { choices += Choice("bestaudio","صوت · الصيغة الأصلية"); choices += Choice("bestaudio","صوت · MP3",true) }
         require(choices.isNotEmpty()) { "No downloadable formats available; update extractor" }
