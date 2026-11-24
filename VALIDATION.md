@@ -8,6 +8,15 @@
 - Compiled `LinkRules.kt` and `LinkRulesTest.kt` using Kotlin 2.1.20 outside Gradle and ran JUnit 4.13.2: **4 tests passed** (share-text parsing, rejecting non-web/credential-bearing URLs, exact YouTube host matching, and access-error classification). This does not compile the Android app.
 - Reviewed the manifest, permission gates, scoped storage publication and foreground-service timeout handling against Android documentation.
 
+## v1.9 changes (2026-11-24)
+
+- Root cause of the CNN "No downloadable formats" report: the latest yt-dlp (2026.11.23) extracts the CNN Arabic article fine (one mp4 format), but the phone's bundled extractor was older and the app never retried with a fresh one — it only showed the error. `Extractor.inspect()` now updates the extractor and retries once automatically when no formats are found (`LinkRules.needsExtractorRefresh`).
+- `FormatRules` (new, unit-tested): HLS/DASH-only formats with a `manifest_url` or `fragments` list count as downloadable; the old filter required a direct https `url` and dropped them.
+- Error sheet offers a blind "تحميل مباشر بأفضل جودة" download (`-f best`, no preview) when inspection fails.
+- In-app browser detection now covers news sites (CNN, Al Jazeera, BBC, France 24, Sky News Arabia, Al Arabiya, Al Hadath, Euronews, RT) in addition to the previous platforms.
+- Release signing: permanent keystore (alias `localdrop`, RSA 2048, valid to 2051-11-18, SHA-256 `96:E2:B7:27:...:46:E7`); encrypted `android/release.keystore.enc` in the repo, decrypted in CI from the `KEYSTORE_PASSPHRASE` secret; `signingConfigs.release` in `app/build.gradle.kts` reads `KEYSTORE_FILE` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` from the environment. Plaintext keystore is git-ignored and kept only in the owner's backup.
+- Unit tests: 32 total (was 26), all passing locally.
+
 ## v1.8 changes (2026-11-24)
 
 - `LinkRules` now recognises 30+ platforms, normalises short links, strips tracking parameters, detects playlists and direct media files, and names the platform in error messages. New unit tests cover platform names, suffix spoofing, normalisation, bare domains, batch extraction, playlist/direct detection and platform-aware errors.
