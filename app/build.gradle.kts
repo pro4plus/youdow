@@ -63,4 +63,7 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
+    // Real org.json for unit tests: the android.jar stubs throw "Stub!" at
+    // runtime (FormatRulesTest exercises JSONObject/JSONArray).
+    testImplementation("org.json:json:20240303")
 }
