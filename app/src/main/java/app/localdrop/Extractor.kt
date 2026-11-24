@@ -134,6 +134,14 @@ class Extractor(private val context: Context) {
         val r = base(url).apply { addOption("--dump-single-json"); addOption("--skip-download") }
         return preview(url, JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out), false)
     }
+
+    // org.json stays behind this boundary: FormatRules works on plain data.
+    private fun entryOf(f: JSONObject) = FormatEntry(
+        url = f.optString("url").takeIf { it.isNotEmpty() },
+        manifestUrl = f.optString("manifest_url").takeIf { it.isNotEmpty() },
+        hasFragments = (f.optJSONArray("fragments")?.length() ?: 0) > 0,
+        hasDrm = f.optBoolean("has_drm"),
+    )
     private fun preview(url: String, raw: JSONObject, fallback: Boolean): Preview {
         // Playlist / channel JSON carries entries instead of formats: inspect the
         // first video (downloads stay single-video; --no-playlist in base()).
@@ -142,7 +150,7 @@ class Extractor(private val context: Context) {
         require(!j.optBoolean("is_live")) { "Unsupported live stream; try after the broadcast ends" }
         val formats = j.optJSONArray("formats") ?: JSONArray()
         val fs = (0 until formats.length()).map { formats.getJSONObject(it) }
-            .filter { FormatRules.usable(it) }
+            .filter { FormatRules.usable(entryOf(it)) }
             .toMutableList()
         // Single-format sources (direct file, generic extractor) expose one url.
         if (fs.isEmpty() && (j.optString("url").startsWith("http://") || j.optString("url").startsWith("https://"))) {
