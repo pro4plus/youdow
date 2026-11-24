@@ -36,7 +36,7 @@ class LocalDropApp : Application() {
 }
 val Context.app: LocalDropApp get() = applicationContext as LocalDropApp
 
-class Store(context: Context) {
+class Store(private val context: Context) {
     val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
     private val file = AtomicFile(File(context.filesDir, "downloads.json"))
     private val mutable = MutableStateFlow(read())
@@ -60,6 +60,24 @@ class Store(context: Context) {
         if (save) commit(list) else mutable.value = list
     }
     fun get(id: String) = items.value.firstOrNull { it.id == id }
+    /** Remove a finished/failed/cancelled entry and its private staging files.
+     *  Running or saving jobs are never deleted from here. */
+    @Synchronized fun delete(id: String) {
+        val d = items.value.firstOrNull { it.id == id } ?: return
+        if (d.status in listOf(Status.RUNNING, Status.SAVING)) return
+        commit(items.value.filter { it.id != id })
+        File(File(context.filesDir, "transfers"), id).deleteRecursively()
+        File(context.filesDir, "pending-$id").delete()
+    }
+    @Synchronized fun clearFinished() {
+        val keep = items.value.filter { it.status !in listOf(Status.COMPLETE, Status.CANCELED, Status.FAILED) }
+        items.value.filter { it.status in listOf(Status.COMPLETE, Status.CANCELED, Status.FAILED) }
+            .forEach {
+                File(File(context.filesDir, "transfers"), it.id).deleteRecursively()
+                File(context.filesDir, "pending-${it.id}").delete()
+            }
+        commit(keep)
+    }
     private fun commit(list: List<Download>) {
         val bytes = JSONArray().apply { list.forEach { d -> put(JSONObject().apply {
             put("id",d.id); put("url",d.url); put("title",d.title); put("selector",d.selector)
