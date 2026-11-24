@@ -50,4 +50,53 @@ class LinkRulesTest {
     @Test fun verboseJavascriptBannerDoesNotHide403() {
         assertTrue(LinkRules.error(Exception("[debug] quickjs ejs\nERROR: HTTP Error 403: Forbidden")).contains("رفض الموقع"))
     }
+    @Test fun namesAllMajorPlatforms() {
+        assertEquals("تيك توك", LinkRules.platformName("https://www.tiktok.com/@x/video/123"))
+        assertEquals("تيك توك", LinkRules.platformName("https://vm.tiktok.com/abc/"))
+        assertEquals("إنستغرام", LinkRules.platformName("https://www.instagram.com/reel/abc/"))
+        assertEquals("فيسبوك", LinkRules.platformName("https://fb.watch/abc/"))
+        assertEquals("إكس", LinkRules.platformName("https://x.com/user/status/123"))
+        assertEquals("إكس", LinkRules.platformName("https://twitter.com/user/status/123"))
+        assertEquals("سناب شات", LinkRules.platformName("https://www.snapchat.com/spotlight/abc"))
+        assertEquals("ريديت", LinkRules.platformName("https://old.reddit.com/r/x/comments/1/"))
+        assertEquals("بينترست", LinkRules.platformName("https://pin.it/abc"))
+        assertEquals("تويتش", LinkRules.platformName("https://clips.twitch.tv/abc"))
+        assertEquals("فيميو", LinkRules.platformName("https://vimeo.com/123"))
+        assertEquals("ديلي موشن", LinkRules.platformName("https://dai.ly/abc"))
+        assertEquals("ساوند كلاود", LinkRules.platformName("https://soundcloud.com/user/track"))
+        assertEquals("ثريدز", LinkRules.platformName("https://www.threads.net/@x/post/1"))
+    }
+    @Test fun platformSuffixMustBeExact() {
+        assertEquals("tiktok.com.attacker.test", LinkRules.platformName("https://tiktok.com.attacker.test/video/1"))
+        assertFalse(LinkRules.youtube("https://youtube.com.attacker.test/watch?v=abc"))
+    }
+    @Test fun stripsTrackingParametersButKeepsVideoId() {
+        assertEquals(
+            "https://www.youtube.com/watch?v=abc&list=xyz",
+            LinkRules.normalize("https://www.youtube.com/watch?v=abc&list=xyz&si=123&utm_source=share&fbclid=zzz")
+        )
+        assertEquals("https://youtu.be/abc", LinkRules.normalize("https://youtu.be/abc?si=123"))
+    }
+    @Test fun extractsBareDomainLinks() {
+        assertEquals("https://tiktok.com/@x/video/123", LinkRules.extract("شوف هذا tiktok.com/@x/video/123"))
+        assertEquals("https://youtu.be/abc", LinkRules.extract("youtu.be/abc"))
+    }
+    @Test fun extractsAllLinksForBatch() {
+        val links = LinkRules.extractAll("https://youtu.be/a https://www.tiktok.com/@x/video/1 https://youtu.be/a")
+        assertEquals(listOf("https://youtu.be/a", "https://www.tiktok.com/@x/video/1"), links)
+    }
+    @Test fun detectsPlaylistsAndDirectMedia() {
+        assertTrue(LinkRules.isPlaylist("https://www.youtube.com/playlist?list=PL123"))
+        assertTrue(LinkRules.isPlaylist("https://www.youtube.com/watch?v=abc&list=PL123"))
+        assertFalse(LinkRules.isPlaylist("https://www.youtube.com/watch?v=abc"))
+        assertTrue(LinkRules.isDirectMedia("https://cdn.example.com/clip.mp4?token=1"))
+        assertTrue(LinkRules.isDirectMedia("https://example.com/song.mp3"))
+        assertFalse(LinkRules.isDirectMedia("https://www.youtube.com/watch?v=abc"))
+        assertEquals("my clip 2024", LinkRules.directTitle("https://cdn.example.com/my_clip-2024.mp4"))
+    }
+    @Test fun errorNamesActualPlatform() {
+        assertTrue(LinkRules.errorFor("https://www.tiktok.com/@x/video/1", Exception("HTTP Error 429")).contains("تيك توك"))
+        assertTrue(LinkRules.errorFor("https://vimeo.com/1", Exception("This video is not available in your country")).contains("بلدك"))
+        assertTrue(LinkRules.error(Exception("ERROR: Unable to extract video")).contains("جودات قابلة للتنزيل"))
+    }
 }
