@@ -15,7 +15,8 @@
 - Error sheet offers a blind "تحميل مباشر بأفضل جودة" download (`-f best`, no preview) when inspection fails.
 - In-app browser detection now covers news sites (CNN, Al Jazeera, BBC, France 24, Sky News Arabia, Al Arabiya, Al Hadath, Euronews, RT) in addition to the previous platforms.
 - Release signing: permanent keystore (alias `localdrop`, RSA 2048, valid to 2051-11-18, SHA-256 `96:E2:B7:27:...:46:E7`); encrypted `android/release.keystore.enc` in the repo, decrypted in CI from the `KEYSTORE_PASSPHRASE` secret; `signingConfigs.release` in `app/build.gradle.kts` reads `KEYSTORE_FILE` / `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` from the environment. Plaintext keystore is git-ignored and kept only in the owner's backup.
-- Unit tests: 32 total (was 26), all passing locally.
+- Unit tests: 31 total (was 26), all passing locally. `FormatRules` works on plain `FormatEntry` data — no org.json in tests, so no android.jar stub problem.
+- CI lesson (2026-11-24): two runs failed at "Run unit tests" with Maven Central HTTP 429 (rate limit) while resolving the Gradle classpath — no test ever ran, no compile error. Fix: `actions/cache` for Gradle caches + retry loop (up to 3 attempts, 60s apart) around each Gradle invocation in `.github/workflows/build-apk.yml`; `--stacktrace` dropped (22k-line logs hid the real error).
 
 ## v1.8 changes (2026-11-24)
 
