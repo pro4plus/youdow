@@ -212,6 +212,13 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
             if(error.isNotBlank()) {
                 FailurePanel(error)
                 PrimaryButton("إعادة المحاولة",{inspect(input)},enabled=!busy)
+                // The preview can fail while a direct download still works
+                // (the downloader resolves formats at download time).
+                PrimaryButton("تحميل مباشر بأفضل جودة",{
+                    val blind = Preview(input, LinkRules.platformName(input), "", 0,
+                        listOf(Choice("best", "أفضل جودة · تلقائي")), false)
+                    enqueue(blind, blind.choices.first()); sheet = false; browser = false; tab = 1
+                },enabled=!busy)
                 TextButton(onClick={sheet=false;browser=false;tab=2},modifier=Modifier.heightIn(min=48.dp)) { Text("فتح إعدادات أداة التنزيل") }
             }
             TextButton(onClick={sheet=false},modifier=Modifier.fillMaxWidth().heightIn(min=48.dp)) { Text("إلغاء",color=Palette.Muted) }
