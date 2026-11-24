@@ -141,6 +141,15 @@ object LinkRules {
 
     fun error(e: Throwable): String = classify(e, "يوتيوب")
 
+    /** True when the failure means the bundled extractor found no formats:
+     *  the usual sign of an outdated extractor for this site. */
+    fun needsExtractorRefresh(e: Throwable): Boolean {
+        val msg = generateSequence(e) { it.cause }.take(5)
+            .joinToString("\n") { it.message.orEmpty() }.lowercase()
+        return "no downloadable formats" in msg || "no video formats" in msg ||
+            "no formats" in msg
+    }
+
     /** Same classification as [error], but names the actual platform. */
     fun errorFor(url: String, e: Throwable): String = classify(e, platformName(url))
 
