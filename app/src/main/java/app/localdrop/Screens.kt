@@ -35,20 +35,9 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.URI
 import java.util.Locale
 
-private fun platform(url: String): String {
-    val host=runCatching { URI(url).host.orEmpty().removePrefix("www.") }.getOrDefault("")
-    return when {
-        LinkRules.youtube(url) -> "يوتيوب"
-        host.endsWith("tiktok.com") -> "تيك توك"
-        host.endsWith("instagram.com") -> "إنستغرام"
-        host.endsWith("facebook.com") || host == "fb.watch" -> "فيسبوك"
-        host.endsWith("snapchat.com") -> "سناب شات"
-        else -> host.ifBlank { "فيديو" }
-    }
-}
+private fun platform(url: String): String = LinkRules.platformName(url)
 private fun sizeLabel(bytes: Long): String = when {
     bytes <= 0 -> "الحجم غير متاح"
     bytes >= 1_073_741_824 -> String.format(Locale.US,"%.1f غيغابايت",bytes/1_073_741_824.0)
@@ -80,14 +69,40 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
     var browser by rememberSaveable { mutableStateOf(false) }
     var browserStart by rememberSaveable { mutableStateOf("https://m.youtube.com") }
     fun inspect(text: String) {
-        val url=LinkRules.extract(text)
-        if(url == null) { error="ألصق رابط فيديو صالحًا يبدأ بـ http أو https.";return }
-        if(busy) return
-        input=url;preview=null;error="";busy=true;sheet=true
+        val urls = LinkRules.extractAll(text)
+        if (urls.isEmpty()) { error = "ألصق رابط فيديو صالحًا يبدأ بـ http أو https."; return }
+        if (busy) return
+        if (urls.size > 1) {
+            // Batch: inspect every link and queue each with the default quality.
+            input = urls.joinToString("\n"); preview = null; error = ""; busy = true; sheet = false
+            scope.launch {
+                var done = 0; var failed = 0
+                for (u in urls) {
+                    try {
+                        val p = context.app.engine.inspect(u)
+                        val choice = p.choices.firstOrNull {
+                            (it.label.substringBefore('p').toIntOrNull() ?: Int.MAX_VALUE) <= context.app.store.quality
+                        } ?: p.choices.first()
+                        context.app.store.add(p, choice)
+                        DownloadService.command(context)
+                        done++
+                    } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        failed++
+                    }
+                }
+                busy = false
+                if (failed > 0) error = "تمت إضافة $done من ${urls.size} روابط، وتعذر $failed. افحص الروابط المتعذرة واحدًا واحدًا لمعرفة السبب."
+                else tab = 1
+            }
+            return
+        }
+        val url = urls.first()
+        input = url; preview = null; error = ""; busy = true; sheet = true
         scope.launch {
-            try { preview=context.app.engine.inspect(url) }
-            catch(e: Exception) { if(e is kotlinx.coroutines.CancellationException) throw e; error=LinkRules.report(e) }
-            finally { busy=false }
+            try { preview = context.app.engine.inspect(url) }
+            catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; error = LinkRules.reportFor(url, e) }
+            finally { busy = false }
         }
     }
     LaunchedEffect(incoming) { if(incoming.isNotBlank()) inspect(incoming) }
@@ -134,8 +149,13 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
                             style=Stroke(1.dp.toPx(),pathEffect=PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(),5.dp.toPx()))))
                     }.padding(16.dp),horizontalArrangement=Arrangement.spacedBy(12.dp),verticalAlignment=Alignment.CenterVertically) {
                         LineIcon(R.drawable.ui_share)
-                        Text("أسرع طريقة: من أي تطبيق اضغط مشاركة ثم اختر لوكال دروب",color=Palette.Muted,
+                        Text("أسرع طريقة: من أي تطبيق اضغط مشاركة ثم اختر لوكال دروب. يمكنك لصق عدة روابط دفعة واحدة، كل رابط في سطر.",color=Palette.Muted,
                             style=MaterialTheme.typography.bodyMedium,modifier=Modifier.weight(1f))
+                    } }
+                    item { Panel {
+                        Text("منصات مدعومة",style=MaterialTheme.typography.titleMedium)
+                        Text("يوتيوب • تيك توك • إنستغرام • فيسبوك • إكس • سناب شات • ريديت • بينترست • تويتش • فيميو • ديلي موشن • ساوند كلاود • ثريدز • تيليغرام • وأكثر من 1000 موقع عبر أداة yt-dlp، إضافة إلى روابط الملفات المباشرة (mp4 / mp3).",color=Palette.Muted,style=MaterialTheme.typography.bodyMedium)
+                        Text("الفيديوهات الخاصة والمحمية والتي تتطلب تسجيل دخول غير مدعومة.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
                     } }
                     if(clip != null) item { Panel {
                         Text("رابط جاهز من الحافظة",style=MaterialTheme.typography.titleMedium)
@@ -164,6 +184,8 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
                         item { Text("التحميلات",style=MaterialTheme.typography.headlineLarge) }
                         item { Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             listOf("الكل","جارٍ","مكتمل").forEachIndexed { index,label -> Pill(label,filter==index) { filter=index } }
+                            if (downloads.any { it.status in listOf(Status.COMPLETE, Status.CANCELED, Status.FAILED) })
+                                TextButton(onClick={ context.app.store.clearFinished() },modifier=Modifier.heightIn(min=48.dp)) { Text("مسح المنتهية",color=Palette.Muted) }
                         } }
                         if(permissionError.isNotBlank()) item { Text(permissionError) }
                         if(rows.isEmpty()) item { EmptyState("لا توجد تحميلات هنا","ستظهر الملفات المطابقة لهذا الفلتر هنا.") }
@@ -292,10 +314,27 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
         else if(d.status !in listOf(Status.COMPLETE,Status.CANCELED) && d.message.isNotBlank()) Text(d.message,color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
         if(d.status==Status.COMPLETE) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
             Text(sizeLabel(actualSize),color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
-            OutlinedButton(onClick=onOpen,shape=RoundedCornerShape(14.dp),border=BorderStroke(1.dp,Palette.Outline),
-                modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.outlinedButtonColors(contentColor=Palette.Text)) {
-                LineIcon(R.drawable.ui_play,tint=Palette.Text);Spacer(Modifier.width(6.dp));Text("فتح")
+            Row {
+                OutlinedButton(onClick={
+                    val share = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = if (d.mp3 || d.selector == "bestaudio") "audio/*" else "video/*"
+                        putExtra(android.content.Intent.EXTRA_STREAM, Uri.parse(d.uri))
+                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    context.startActivity(android.content.Intent.createChooser(share, "مشاركة"))
+                },shape=RoundedCornerShape(14.dp),border=BorderStroke(1.dp,Palette.Outline),
+                    modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.outlinedButtonColors(contentColor=Palette.Text)) {
+                    LineIcon(R.drawable.ui_share,tint=Palette.Text);Spacer(Modifier.width(6.dp));Text("مشاركة")
+                }
+                Spacer(Modifier.width(8.dp))
+                OutlinedButton(onClick=onOpen,shape=RoundedCornerShape(14.dp),border=BorderStroke(1.dp,Palette.Outline),
+                    modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.outlinedButtonColors(contentColor=Palette.Text)) {
+                    LineIcon(R.drawable.ui_play,tint=Palette.Text);Spacer(Modifier.width(6.dp));Text("فتح")
+                }
             }
+        }
+        if(d.status in listOf(Status.COMPLETE,Status.FAILED,Status.CANCELED)) TextButton(onClick={ context.app.store.delete(d.id) },modifier=Modifier.heightIn(min=48.dp)) {
+            LineIcon(R.drawable.ui_close);Spacer(Modifier.width(6.dp));Text("حذف من السجل",color=Palette.Muted)
         }
         if(d.status !in listOf(Status.COMPLETE,Status.CANCELED,Status.SAVING)) TextButton(onClick={DownloadService.command(context,"cancel",d.id)},modifier=Modifier.heightIn(min=48.dp)) {
             LineIcon(R.drawable.ui_close);Spacer(Modifier.width(6.dp));Text("إلغاء التحميل",color=Palette.Muted)
@@ -309,7 +348,7 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
     } ?: p.choices.first() }
     var selected by remember(p) { mutableStateOf(preferred) }
     var expanded by remember(p) { mutableStateOf(false) }
-    val cards=remember(p) { listOf(1080,720,480).map { height ->
+    val cards=remember(p) { listOf(2160,1440,1080,720,480).map { height ->
         "${height}p" to p.choices.firstOrNull { it.label.startsWith("${height}p ·") }
     } + listOf("صوت MP3" to p.choices.firstOrNull { it.mp3 }) }
     Column(Modifier.fillMaxWidth().heightIn(max=LocalConfiguration.current.screenHeightDp.dp * 0.86f).padding(horizontal=20.dp).navigationBarsPadding()) {
