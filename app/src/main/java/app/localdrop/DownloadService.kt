@@ -103,7 +103,7 @@ class DownloadService : Service() {
                 } catch(e: Exception) {
                     if(e is CancellationException) throw e
                     if(store.get(next.id)?.status in listOf(Status.RUNNING,Status.SAVING))
-                        store.change(next.id) { it.copy(status=Status.FAILED,message=LinkRules.report(e)) }
+                        store.change(next.id) { it.copy(status=Status.FAILED,message=LinkRules.reportFor(next.url,e)) }
                 } finally {
                     monitor.cancelAndJoin()
                     if(wake?.isHeld == true) wake?.release()
