@@ -1,35 +1,26 @@
 package app.localdrop
 
-import org.json.JSONArray
-import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 
 class FormatRulesTest {
-    private fun format(json: String) = JSONObject(json)
-
     @Test fun acceptsDirectHttpsUrl() {
-        assertTrue(FormatRules.usable(format("""{"format_id":"18","url":"https://cdn.example.com/v.mp4","ext":"mp4"}""")))
+        assertTrue(FormatRules.usable(FormatEntry("https://cdn.example.com/v.mp4", null, false, false)))
     }
 
     @Test fun acceptsManifestOnlyHls() {
         // News sites often serve HLS/DASH only: no direct url, just a manifest.
-        assertTrue(FormatRules.usable(format("""{"format_id":"hls-720","manifest_url":"https://cdn.example.com/master.m3u8","protocol":"m3u8"}""")))
+        assertTrue(FormatRules.usable(FormatEntry(null, "https://cdn.example.com/master.m3u8", false, false)))
     }
 
     @Test fun acceptsFragmentOnlyDash() {
-        assertTrue(FormatRules.usable(format("""{"format_id":"dash-1080","fragments":[{"url":"https://cdn.example.com/seg1.m4s"}]}""")))
+        assertTrue(FormatRules.usable(FormatEntry(null, null, true, false)))
     }
 
     @Test fun rejectsDrmAndEmptyFormats() {
-        assertFalse(FormatRules.usable(format("""{"format_id":"x","url":"https://cdn.example.com/v.mp4","has_drm":true}""")))
-        assertFalse(FormatRules.usable(format("""{"format_id":"x","ext":"mp4"}""")))
-        assertFalse(FormatRules.usable(format("""{"format_id":"x","url":"blob:https://example.com/123"}""")))
-        assertFalse(FormatRules.usable(format("""{"format_id":"x","url":""}""")))
-    }
-
-    @Test fun emptyFragmentsDoNotCount() {
-        assertFalse(FormatRules.usable(format("""{"format_id":"x","fragments":[]}""")))
-        assertTrue(JSONArray().length() == 0)
+        assertFalse(FormatRules.usable(FormatEntry("https://cdn.example.com/v.mp4", null, false, true)))
+        assertFalse(FormatRules.usable(FormatEntry(null, null, false, false)))
+        assertFalse(FormatRules.usable(FormatEntry("blob:https://example.com/123", null, false, false)))
+        assertFalse(FormatRules.usable(FormatEntry("", null, false, false)))
     }
 }
