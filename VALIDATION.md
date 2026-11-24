@@ -8,6 +8,17 @@
 - Compiled `LinkRules.kt` and `LinkRulesTest.kt` using Kotlin 2.1.20 outside Gradle and ran JUnit 4.13.2: **4 tests passed** (share-text parsing, rejecting non-web/credential-bearing URLs, exact YouTube host matching, and access-error classification). This does not compile the Android app.
 - Reviewed the manifest, permission gates, scoped storage publication and foreground-service timeout handling against Android documentation.
 
+## v1.8 changes (2026-11-24)
+
+- `LinkRules` now recognises 30+ platforms, normalises short links, strips tracking parameters, detects playlists and direct media files, and names the platform in error messages. New unit tests cover platform names, suffix spoofing, normalisation, bare domains, batch extraction, playlist/direct detection and platform-aware errors.
+- `Extractor` short-circuits direct media links, unwraps playlist JSON to its first video, synthesises a format for single-URL sources, and retries fragments up to 10 times.
+- Quality sheet offers 2160p/1440p/1080p/720p/480p + MP3; settings offer a 1440p cap.
+- Batch paste (one link per line) queues each link with the default quality.
+- History: delete single finished/failed/cancelled entries, clear all finished entries, share a completed file.
+- In-app browser video detection covers X, Reddit, Pinterest, Twitch, Dailymotion, SoundCloud, Threads, Telegram, Bilibili and Rumble in addition to the previous platforms.
+- NewPipeExtractor upgraded v0.26.5 → v0.27.1 (JitPack POM verified 200). youtubedl-android stays at 0.18.1, the latest release; yt-dlp itself updates nightly on-device to the latest release.
+- CI now runs `:app:testDebugUnitTest` before building the debug APK.
+
 ## Not yet verified
 
 Android compilation, Android Lint, emulator/device execution, extractor site behavior, foreground process termination, stream merging, MediaStore visibility and actual downloads have not been run here. The machine has Java 8 and no Android SDK. A source review is not evidence that the app builds or works on a device.
