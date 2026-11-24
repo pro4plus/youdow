@@ -99,4 +99,10 @@ class LinkRulesTest {
         assertTrue(LinkRules.errorFor("https://vimeo.com/1", Exception("This video is not available in your country")).contains("بلدك"))
         assertTrue(LinkRules.error(Exception("ERROR: Unable to extract video")).contains("جودات قابلة للتنزيل"))
     }
+    @Test fun detectsStaleExtractorFailures() {
+        assertTrue(LinkRules.needsExtractorRefresh(Exception("No downloadable formats available; update extractor")))
+        assertTrue(LinkRules.needsExtractorRefresh(IllegalStateException("yt-dlp: ERROR: No video formats found")))
+        assertFalse(LinkRules.needsExtractorRefresh(Exception("Private video")))
+        assertFalse(LinkRules.needsExtractorRefresh(Exception("HTTP Error 403")))
+    }
 }
