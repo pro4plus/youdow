@@ -7,7 +7,7 @@
       return u.protocol === 'https:' && !u.username && !u.password ? u.href : '';
     } catch (_) { return ''; }
   };
-  const platform = /(^|\.)(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|facebook\.com|fb\.watch|snapchat\.com|vimeo\.com|x\.com|twitter\.com|reddit\.com|pinterest\.com|twitch\.tv|dailymotion\.com|soundcloud\.com|threads\.net|t\.me|bilibili\.com|rumble\.com)$/i.test(location.hostname);
+  const platform = /(^|\.)(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|facebook\.com|fb\.watch|snapchat\.com|vimeo\.com|x\.com|twitter\.com|reddit\.com|pinterest\.com|twitch\.tv|dailymotion\.com|soundcloud\.com|threads\.net|t\.me|bilibili\.com|rumble\.com|cnn\.com|aljazeera\.com|aljazeera\.net|bbc\.com|france24\.com|skynewsarabia\.com|alarabiya\.net|alhadath\.net|euronews\.com|rt\.com)$/i.test(location.hostname);
   const candidates = [];
   let protectedVideo = false;
   const permalink = video => {
