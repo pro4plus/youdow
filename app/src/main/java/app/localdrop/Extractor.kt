@@ -91,10 +91,20 @@ class Extractor(private val context: Context) {
     suspend fun inspect(url: String): Preview = withContext(Dispatchers.IO) { lock.withLock {
         init()
         ensureUpdated()
+        // Direct media file (CDN / direct mp4, mp3, ...): no extractor round-trip.
+        if (LinkRules.isDirectMedia(url)) {
+            val ext = url.substringBefore("?").substringAfterLast(".", "mp4").lowercase()
+            val audioOnly = ext in setOf("mp3", "m4a", "aac", "ogg", "oga", "wav", "flac", "opus")
+            val choices = if (audioOnly) listOf(
+                Choice("bestaudio", "صوت · الصيغة الأصلية"),
+                Choice("bestaudio", "صوت · MP3", true)
+            ) else listOf(Choice("best", "ملف مباشر · ${ext.uppercase()}"))
+            return@withLock Preview(url, LinkRules.directTitle(url), "", 0, choices, false)
+        }
         try {
             val r = base(url).apply { addOption("--dump-single-json"); addOption("--skip-download") }
-            preview(url,JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out),false)
-        } catch(e: Exception) {
+            preview(url, JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out), false)
+        } catch (e: Exception) {
             if(e is kotlinx.coroutines.CancellationException) throw e
             val msg = e.message.orEmpty().lowercase()
             if (!LinkRules.youtube(url) || listOf("drm","private","login","sign in").any { it in msg }) throw e
@@ -106,12 +116,25 @@ class Extractor(private val context: Context) {
             }
         }
     } }
-    private fun preview(url: String, j: JSONObject, fallback: Boolean): Preview {
+    private fun preview(url: String, raw: JSONObject, fallback: Boolean): Preview {
+        // Playlist / channel JSON carries entries instead of formats: inspect the
+        // first video (downloads stay single-video; --no-playlist in base()).
+        val j = raw.optJSONArray("entries")?.optJSONObject(0) ?: raw
         require(!j.optBoolean("has_drm")) { "DRM protected" }
         require(!j.optBoolean("is_live")) { "Unsupported live stream; try after the broadcast ends" }
-        val formats=j.optJSONArray("formats") ?: JSONArray()
-        val fs=(0 until formats.length()).map { formats.getJSONObject(it) }
+        val formats = j.optJSONArray("formats") ?: JSONArray()
+        val fs = (0 until formats.length()).map { formats.getJSONObject(it) }
             .filter { !it.optBoolean("has_drm") && it.optString("url").startsWith("https://") }
+            .toMutableList()
+        // Single-format sources (direct file, generic extractor) expose one url.
+        if (fs.isEmpty() && j.optString("url").startsWith("https://")) {
+            fs += JSONObject().apply {
+                put("format_id", "best"); put("url", j.optString("url"))
+                put("ext", j.optString("ext", "mp4")); put("height", j.optInt("height", 0))
+                put("vcodec", j.optString("vcodec", "unknown"))
+                put("acodec", j.optString("acodec", "unknown"))
+            }
+        }
         val audio=fs.filter { it.optString("vcodec","none") == "none" && it.optString("acodec","none") != "none" }
         val choices=fs.filter { it.optString("vcodec","none") != "none" &&
             (it.optString("acodec","none") != "none" || audio.isNotEmpty()) }
@@ -129,10 +152,12 @@ class Extractor(private val context: Context) {
         return Preview(url,j.optString("title","Video"),j.optString("thumbnail"),j.optLong("duration"),choices,fallback)
     }
     private fun base(url: String) = YoutubeDLRequest(url).apply {
-        addOption("--no-playlist"); addOption("--socket-timeout",30)
-        addOption("--retries",3); addOption("--fragment-retries",3)
+        // Single video, even for playlist links: the first video is inspected
+        // and downloaded, the whole list is never pulled silently.
+        addOption("--no-playlist"); addOption("--socket-timeout", 30)
+        addOption("--retries", 10); addOption("--fragment-retries", 10)
         // Official yt-dlp EJS scripts run locally using the library's bundled QuickJS.
-        if(LinkRules.youtube(url)) addOption("--remote-components","ejs:github")
+        if (LinkRules.youtube(url)) addOption("--remote-components", "ejs:github")
     }
     suspend fun download(d: Download, dir: File, onProgress: (Int)->Unit): File = withContext(Dispatchers.IO) { lock.withLock {
         init(); dir.mkdirs()
