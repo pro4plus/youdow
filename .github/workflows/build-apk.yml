@@ -47,3 +47,24 @@ jobs:
           name: LocalDrop-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Decrypt release keystore
+        run: |
+          openssl enc -d -aes-256-cbc -pbkdf2 -in android/release.keystore.enc -out android/release.keystore -pass pass:${{ secrets.KEYSTORE_PASSPHRASE }}
+
+      - name: Build release APK
+        env:
+          KEYSTORE_FILE: android/release.keystore
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalDrop-Release-APK
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
