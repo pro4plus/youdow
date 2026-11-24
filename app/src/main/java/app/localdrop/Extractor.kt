@@ -102,20 +102,38 @@ class Extractor(private val context: Context) {
             return@withLock Preview(url, LinkRules.directTitle(url), "", 0, choices, false)
         }
         try {
-            val r = base(url).apply { addOption("--dump-single-json"); addOption("--skip-download") }
-            preview(url, JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out), false)
-        } catch (e: Exception) {
+            inspectOnce(url)
+        } catch(e: Exception) {
             if(e is kotlinx.coroutines.CancellationException) throw e
-            val msg = e.message.orEmpty().lowercase()
-            if (!LinkRules.youtube(url) || listOf("drm","private","login","sign in").any { it in msg }) throw e
+            var lastError: Exception = e
+            // "No formats" usually means the bundled extractor is outdated for
+            // this site. Update it now and retry once, instead of telling the
+            // user to update and inspect the link again by hand.
+            if (LinkRules.needsExtractorRefresh(e)) {
+                runCatching { updateNightly() }
+                try {
+                    return@withLock inspectOnce(url)
+                } catch (retryError: Exception) {
+                    if (retryError is kotlinx.coroutines.CancellationException) throw retryError
+                    lastError = retryError
+                }
+            }
+            val msg = lastError.message.orEmpty().lowercase()
+            if (!LinkRules.youtube(url) || listOf("drm","private","login","sign in").any { it in msg }) throw lastError
             try { preview(url,fallbackInfo(url),true) }
             catch(fallbackError: Exception) {
                 if(fallbackError is kotlinx.coroutines.CancellationException) throw fallbackError
                 // Preserve both failures; the previous implementation lost the yt-dlp reason.
-                throw IllegalStateException("yt-dlp: ${e.message}\nNewPipe: ${fallbackError.message}",e)
+                throw IllegalStateException("yt-dlp: ${lastError.message}\nNewPipe: ${fallbackError.message}",lastError)
             }
         }
     } }
+
+    // Caller holds lock.
+    private fun inspectOnce(url: String): Preview {
+        val r = base(url).apply { addOption("--dump-single-json"); addOption("--skip-download") }
+        return preview(url, JSONObject(YoutubeDL.getInstance().execute(r, "inspect").out), false)
+    }
     private fun preview(url: String, raw: JSONObject, fallback: Boolean): Preview {
         // Playlist / channel JSON carries entries instead of formats: inspect the
         // first video (downloads stay single-video; --no-playlist in base()).
@@ -124,10 +142,10 @@ class Extractor(private val context: Context) {
         require(!j.optBoolean("is_live")) { "Unsupported live stream; try after the broadcast ends" }
         val formats = j.optJSONArray("formats") ?: JSONArray()
         val fs = (0 until formats.length()).map { formats.getJSONObject(it) }
-            .filter { !it.optBoolean("has_drm") && it.optString("url").startsWith("https://") }
+            .filter { FormatRules.usable(it) }
             .toMutableList()
         // Single-format sources (direct file, generic extractor) expose one url.
-        if (fs.isEmpty() && j.optString("url").startsWith("https://")) {
+        if (fs.isEmpty() && (j.optString("url").startsWith("http://") || j.optString("url").startsWith("https://"))) {
             fs += JSONObject().apply {
                 put("format_id", "best"); put("url", j.optString("url"))
                 put("ext", j.optString("ext", "mp4")); put("height", j.optInt("height", 0))
