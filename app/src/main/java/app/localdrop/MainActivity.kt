@@ -115,7 +115,7 @@ internal fun Settings() {
     Text("حمّل بالطريقة التي تناسبك.",color=Palette.Muted)
     Panel {
         Text("الجودة الافتراضية",style=MaterialTheme.typography.titleMedium)
-        listOf(360,720,1080,2160).chunked(2).forEach { row ->
+        listOf(360,720,1080,1440,2160).chunked(2).forEach { row ->
             Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 row.forEach { q -> Pill(q.toString()+"p",quality==q) {quality=q;store.quality=q} }
             }
