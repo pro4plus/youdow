@@ -3,3 +3,6 @@
 local.properties
 **/build/
 *.jks
+*.keystore
+# NOTE: android/release.keystore.enc IS committed on purpose (AES-256-CBC
+# encrypted keystore for CI). The plaintext *.keystore must never be committed.
