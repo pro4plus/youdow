@@ -19,8 +19,10 @@ android {
         // properties. The keystore itself is NEVER committed: only the
         // encrypted android/release.keystore.enc lives in the repo.
         create("release") {
+            // KEYSTORE_FILE is relative to the repo root (CI decrypts there);
+            // file() here would resolve relative to the app/ module instead.
             val keystoreFile = System.getenv("KEYSTORE_FILE") ?: "release.keystore"
-            storeFile = file(keystoreFile)
+            storeFile = rootProject.file(keystoreFile)
             storePassword = System.getenv("KEYSTORE_PASSWORD")
             keyAlias = System.getenv("KEY_ALIAS")
             keyPassword = System.getenv("KEY_PASSWORD")
