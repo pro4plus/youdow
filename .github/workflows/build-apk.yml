@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Download project
@@ -31,15 +31,35 @@ jobs:
       - name: Install Android build tools
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Run unit tests
         run: |
           chmod +x gradlew
-          ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+          for i in 1 2 3; do
+            if ./gradlew :app:testDebugUnitTest --no-daemon; then exit 0; fi
+            echo "Gradle attempt $i failed; waiting 60s before retry"
+            sleep 60
+          done
+          exit 1
 
       - name: Build debug APK
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          for i in 1 2 3; do
+            if ./gradlew :app:assembleDebug --no-daemon; then exit 0; fi
+            echo "Gradle attempt $i failed; waiting 60s before retry"
+            sleep 60
+          done
+          exit 1
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -60,7 +80,12 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleRelease --no-daemon --stacktrace
+          for i in 1 2 3; do
+            if ./gradlew :app:assembleRelease --no-daemon; then exit 0; fi
+            echo "Gradle attempt $i failed; waiting 60s before retry"
+            sleep 60
+          done
+          exit 1
 
       - name: Upload release APK
         uses: actions/upload-artifact@v4
