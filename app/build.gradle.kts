@@ -10,8 +10,8 @@ android {
         applicationId = "app.localdrop"
         minSdk = 26
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.7-ar"
+        versionCode = 9
+        versionName = "1.8-ar"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }
     }
     buildFeatures { compose = true }
@@ -40,7 +40,7 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.6.1")
     implementation("io.github.junkfood02.youtubedl-android:library:0.18.1")
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
-    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.26.5")
+    implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
