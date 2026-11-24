@@ -7,7 +7,7 @@
       return u.protocol === 'https:' && !u.username && !u.password ? u.href : '';
     } catch (_) { return ''; }
   };
-  const platform = /(^|\.)(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|facebook\.com|fb\.watch|snapchat\.com|vimeo\.com)$/i.test(location.hostname);
+  const platform = /(^|\.)(youtube\.com|youtu\.be|tiktok\.com|instagram\.com|facebook\.com|fb\.watch|snapchat\.com|vimeo\.com|x\.com|twitter\.com|reddit\.com|pinterest\.com|twitch\.tv|dailymotion\.com|soundcloud\.com|threads\.net|t\.me|bilibili\.com|rumble\.com)$/i.test(location.hostname);
   const candidates = [];
   let protectedVideo = false;
   const permalink = video => {
@@ -15,7 +15,7 @@
     for (let level = 0; node && level < 5; level++, node = node.parentElement) {
       for (const a of Array.from(node.querySelectorAll('a[href]')).slice(0, 30)) {
         const link = safe(a.href);
-        if (/\/(?:watch\?v=|shorts\/|reels?\/|p\/|[^/]+\/video\/|videos\/)/i.test(link)) return link;
+        if (/\/(?:watch\?v=|shorts\/|reels?\/|reel\/|p\/|status\/|pin\/|videos?\/|clip\/|live\/|sets\/|[^/]+\/video\/)/i.test(link)) return link;
       }
     }
     return '';
@@ -32,7 +32,7 @@
       if (!src && video.readyState === 0) continue;
       const direct = safe(src, base);
       // Blob/MSE URLs cannot be passed to the downloader. Use the source page instead.
-      const detailPage = /\/(?:watch\?v=|shorts\/|reels?\/|p\/|[^/]+\/video\/|videos\/)/i.test(page);
+      const detailPage = /\/(?:watch\?v=|shorts\/|reels?\/|reel\/|p\/|status\/|pin\/|videos?\/|clip\/|live\/|sets\/|[^/]+\/video\/)/i.test(page);
       const target = platform ? ((detailPage ? safe(page) : '') || permalink(video) || direct || safe(page)) : (direct || safe(base));
       if (target) candidates.push({ target, title: (video.getAttribute('aria-label') || video.title || doc.title || 'فيديو').slice(0, 160),
         thumbnail: safe(video.poster, base), score: (video.paused ? 0 : 1e9) + rect.width * rect.height });
