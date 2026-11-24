@@ -10,9 +10,28 @@ android {
         applicationId = "app.localdrop"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "1.8-ar"
+        versionCode = 10
+        versionName = "1.9-ar"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }
+    }
+    signingConfigs {
+        // Release signing from environment (CI secrets) or local gradle
+        // properties. The keystore itself is NEVER committed: only the
+        // encrypted android/release.keystore.enc lives in the repo.
+        create("release") {
+            val keystoreFile = System.getenv("KEYSTORE_FILE") ?: "release.keystore"
+            storeFile = file(keystoreFile)
+            storePassword = System.getenv("KEYSTORE_PASSWORD")
+            keyAlias = System.getenv("KEY_ALIAS")
+            keyPassword = System.getenv("KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig = signingConfigs.getByName("release")
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
     }
     buildFeatures { compose = true }
     compileOptions {
