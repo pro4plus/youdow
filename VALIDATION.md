@@ -8,6 +8,12 @@
 - Compiled `LinkRules.kt` and `LinkRulesTest.kt` using Kotlin 2.1.20 outside Gradle and ran JUnit 4.13.2: **4 tests passed** (share-text parsing, rejecting non-web/credential-bearing URLs, exact YouTube host matching, and access-error classification). This does not compile the Android app.
 - Reviewed the manifest, permission gates, scoped storage publication and foreground-service timeout handling against Android documentation.
 
+## v2.2 changes (2026-11-25)
+
+- arm64-v8a only (`abiFilters`): the release APK drops from ~207 MB to ~65 MB. ffmpeg + Python/yt-dlp were bundled 4× (once per ABI, ~190 MB total); now only the arm64 copy ships. 32-bit and x86 devices are no longer supported.
+- UI redesign from the user's mockup (dark #0B0F14, mint accent #3DDC97): 4 bottom tabs (Home, Browser, Downloads, Settings); Home has platform chips (YouTube/TikTok/Instagram/Facebook open the in-app browser), a clipboard card, and an active-download card; quality sheet is a radio list with a video/MP3 switch, "recommended" mark and estimated sizes; new download detail screen with progress ring, speed, ETA, stage pills (تحليل/تحميل/دمج/حفظ), pause/cancel and next-in-queue; Downloads has search and an audio filter. All meta/explanatory texts removed from the UI (no Firebase/ads/tool mentions, no footer).
+- Unit tests: 31 total, all passing locally.
+
 ## v2.1 changes (2026-11-25)
 
 - Firebase Analytics + Crashlytics (BOM 34.2.0: analytics 23.0.0, crashlytics 20.0.1). Auto events (users, sessions, retention, screens) plus custom events: download_started / download_completed / download_failed (platform, quality, format — never URLs or titles), link_inspected, browser_opened, extractor_updated, file_shared. Failed downloads are also recorded as non-fatal Crashlytics errors. Collection can be switched off in Settings (default on). BOM 35.2.0 was NOT usable: its analytics 24.0.0 needs Kotlin 2.4 metadata while the project is on Kotlin 2.1.20 (verified by compiling a probe with the local kotlinc 2.1.20).
