@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
     private val clipListener=ClipboardManager.OnPrimaryClipChangedListener { if(hasWindowFocus()) readClipboard() }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AdsManager.init(this)
         window.statusBarColor=android.graphics.Color.rgb(17,20,26)
         window.navigationBarColor=android.graphics.Color.rgb(17,20,26)
         androidx.core.view.WindowCompat.getInsetsController(window,window.decorView).apply {
@@ -156,7 +157,7 @@ internal fun Settings() {
         }
         Text("إذا تعذر التحديث نستمر بالإصدار الموجود ونحاول لاحقًا. قد تحتوي الإصدارات التجريبية على أخطاء جديدة.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
     }
-    Text("بلا حسابات، بلا إعلانات، بلا تتبع. لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل دخول.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
+    Text("بلا حسابات. يظهر إعلان بعد الضغط على تحميل. لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل دخول.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
 }
 
 @Composable
