@@ -12,9 +12,9 @@ android {
         applicationId = "com.kbox.localdrop"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "2.1-ar"
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }
+        versionCode = 13
+        versionName = "2.2-ar"
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
     signingConfigs {
         // Release signing from environment (CI secrets) or local gradle
