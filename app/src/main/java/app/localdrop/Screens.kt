@@ -448,9 +448,9 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
             Text(platform(d.url),color=Palette.Muted)
         }
         Row(horizontalArrangement=Arrangement.spacedBy(12.dp)) {
-            StatBox("السرعة",speedLabel(speed))
-            StatBox("المتبقي",etaLabel(etaSec))
-            StatBox("الحجم",if(d.estimatedBytes > 0) downloadedLabel(d).substringAfter(" · ") else "—")
+            StatBox("السرعة",speedLabel(speed),Modifier.weight(1f))
+            StatBox("المتبقي",etaLabel(etaSec),Modifier.weight(1f))
+            StatBox("الحجم",if(d.estimatedBytes > 0) downloadedLabel(d).substringAfter(" · ") else "—",Modifier.weight(1f))
         }
         StagePills(d.status)
         if(d.status == Status.FAILED) FailurePanel(d.message)
@@ -524,9 +524,9 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
     }
 }
 
-@Composable private fun StatBox(label: String,value: String) {
+@Composable private fun StatBox(label: String,value: String,modifier: Modifier = Modifier) {
     Surface(color=Palette.Surface,shape=RoundedCornerShape(16.dp),border=BorderStroke(1.dp,Palette.Border),
-        modifier=Modifier.weight(1f)) {
+        modifier=modifier) {
         Column(Modifier.padding(vertical=14.dp,horizontal=4.dp),horizontalAlignment=Alignment.CenterHorizontally,
             verticalArrangement=Arrangement.spacedBy(4.dp)) {
             Text(label,color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
