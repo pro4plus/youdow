@@ -12,6 +12,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +21,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.Modifier
@@ -30,7 +32,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -111,49 +112,29 @@ internal fun Settings() {
     var wifi by remember { mutableStateOf(store.wifiOnly) }
     var updating by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf("") }
-    val extractorStatus by context.app.engine.updateStatus.collectAsStateWithLifecycle()
+    val qualities = listOf(360,720,1080,1440,2160)
     Text("الإعدادات",style=MaterialTheme.typography.headlineLarge)
-    Text("حمّل بالطريقة التي تناسبك.",color=Palette.Muted)
+    Text("التحميل",color=Palette.Muted)
     Panel {
-        Text("الجودة الافتراضية",style=MaterialTheme.typography.titleMedium)
-        listOf(360,720,1080,1440,2160).chunked(2).forEach { row ->
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                row.forEach { q -> Pill(q.toString()+"p",quality==q) {quality=q;store.quality=q} }
-            }
+        SettingRow("الجودة الافتراضية","${quality}p") {
+            quality = qualities[(qualities.indexOf(quality)+1)%qualities.size];store.quality=quality
         }
-    }
-    Panel {
-        Text("مكان الحفظ",style=MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-            listOf("Movies","Downloads").forEach { f ->
-                Pill(if(f=="Movies") "الفيديوهات" else "التنزيلات",folder==f) {folder=f;store.folder=f}
-            }
+        HorizontalDivider(color=Palette.Border)
+        SettingRow("مكان الحفظ",if(folder=="Movies") "الأفلام" else "التنزيلات") {
+            folder = if(folder=="Movies") "Downloads" else "Movies";store.folder=folder
         }
-        Text("داخل مجلد LocalDrop. تُحفظ الملفات الصوتية في التنزيلات.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
-    }
-    Panel {
+        HorizontalDivider(color=Palette.Border)
         Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("واي فاي فقط",style=MaterialTheme.typography.titleMedium)
-                Text("اضغط استئناف بعد عودة الاتصال.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
-            }
+            Text("Wi-Fi فقط",modifier=Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
             Switch(wifi,{wifi=it;store.wifiOnly=it},modifier=Modifier.semantics { contentDescription="التنزيل عبر واي فاي فقط" })
         }
     }
+    Text("المظهر",color=Palette.Muted)
     Panel {
-        var analytics by remember { mutableStateOf(store.analyticsEnabled) }
-        Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("تتبع الاستخدام",style=MaterialTheme.typography.titleMedium)
-                Text("إحصاءات مجهولة عبر Firebase (المنصة والجودة فقط، بلا روابط أو عناوين).",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
-            }
-            Switch(analytics,{analytics=it;store.analyticsEnabled=it;AppAnalytics.setEnabled(context,it)},modifier=Modifier.semantics { contentDescription="تتبع الاستخدام" })
-        }
+        SettingRow("السمة","داكن",null)
     }
+    Text("المستخرج",color=Palette.Muted)
     Panel {
-        Text("أداة التنزيل",style=MaterialTheme.typography.titleMedium)
-        Text("تحديث تلقائي كل 24 ساعة عند الاستخدام، عبر القناة التجريبية.",color=Palette.Muted)
-        Text(extractorStatus,style=MaterialTheme.typography.bodySmall)
         PrimaryButton(if(updating) "جارٍ فحص التحديث…" else "فحص التحديث الآن",onClick={
             updating=true;result=""
             scope.launch {
@@ -165,9 +146,15 @@ internal fun Settings() {
         if(result.isNotBlank()) {
             if(result.contains("التفاصيل الفنية:")) FailurePanel(result) else Text(result)
         }
-        Text("إذا تعذر التحديث نستمر بالإصدار الموجود ونحاول لاحقًا. قد تحتوي الإصدارات التجريبية على أخطاء جديدة.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
     }
-    Text("بلا حسابات. يظهر إعلان بعد الضغط على تحميل، ويُرسل تتبع استخدام مجهول إلى Firebase (يمكن إيقافه من الأعلى). لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل دخول.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
+}
+
+@Composable private fun SettingRow(label: String,value: String,onClick: (()->Unit)?) {
+    Row(Modifier.fillMaxWidth().then(if(onClick!=null) Modifier.clickable(onClick=onClick,role=Role.Button) else Modifier)
+        .padding(vertical=12.dp),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+        Text(label,modifier=Modifier.weight(1f),style=MaterialTheme.typography.titleMedium)
+        Text(value,color=Palette.Muted)
+    }
 }
 
 @Composable
