@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.gms.google-services")
+    id("com.google.firebase.firebase-crashlytics")
 }
 android {
     namespace = "app.localdrop"
@@ -10,8 +12,8 @@ android {
         applicationId = "com.kbox.localdrop"
         minSdk = 26
         targetSdk = 35
-        versionCode = 11
-        versionName = "2.0-ar"
+        versionCode = 12
+        versionName = "2.1-ar"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }
     }
     signingConfigs {
@@ -66,6 +68,12 @@ dependencies {
     // 25.5.0 needs Kotlin 2.3 metadata; the project is on Kotlin 2.1.20.
     // 24.9.0 is verified compatible with the 2.1.20 compiler.
     implementation("com.google.android.gms:play-services-ads:24.9.0")
+    // Firebase BOM 34.2.0 pins analytics 23.0.0 + crashlytics 20.0.1, both
+    // verified compatible with the Kotlin 2.1.20 compiler. BOM 35.2.0 is
+    // NOT usable: its analytics (24.0.0) needs Kotlin 2.4 metadata.
+    implementation(platform("com.google.firebase:firebase-bom:34.2.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
 }
