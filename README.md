@@ -6,6 +6,8 @@ Native Android video downloader: Kotlin, Jetpack Compose, Android 8.0+ (min SDK 
 
 **Ads (v2.0):** an AdMob interstitial shows after tapping download (at most once every 90 seconds; the download always proceeds). Package is now **com.kbox.localdrop** — a new app identity, so it installs fresh rather than updating the 1.9 (app.localdrop) install.
 
+**Analytics (v2.1):** Firebase Analytics + Crashlytics. Anonymous usage stats only (platform, quality, format — never link URLs or video titles); can be switched off in Settings. Crash reports include non-fatal download failures.
+
 **Release signing:** release APKs are signed with a permanent key (alias `localdrop`, RSA 2048, valid to 2051). Only the encrypted `android/release.keystore.enc` is in the repo; CI decrypts it with the `KEYSTORE_PASSPHRASE` secret and signs with `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD`. The plaintext keystore is never committed — keep the backup outside the repo.
 
 **Validation status:** Source implementation supplied. Unit tests (`LinkRules`, `BrowserRules`, `MergeRecovery`, `UpdatePolicy`, `FormatRules`) run in CI on every push (`.github/workflows/build-apk.yml` runs `:app:testDebugUnitTest` before building the debug APK) — 32 tests, all passing locally with Kotlin 2.1.20 + JUnit. The Android app has not been compiled or exercised on a device in the authoring environment, which has Java 8 and no Android SDK. See `VALIDATION.md` for checks and remaining device tests. Do not treat this as a tested release APK.
