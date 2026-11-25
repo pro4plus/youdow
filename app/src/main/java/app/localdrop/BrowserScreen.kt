@@ -53,7 +53,7 @@ internal fun BrowserScreen(initialUrl: String,busy: Boolean,onClose: ()->Unit,on
     val detectionScript=remember { context.assets.open("detect-video.js").bufferedReader().use { it.readText() } }
     val web=remember {
         WebView(context).apply {
-            setBackgroundColor(android.graphics.Color.rgb(17,20,26))
+            setBackgroundColor(android.graphics.Color.rgb(11,15,20))
             settings.apply {
                 javaScriptEnabled=true
                 domStorageEnabled=true
@@ -149,39 +149,64 @@ internal fun BrowserScreen(initialUrl: String,busy: Boolean,onClose: ()->Unit,on
         if(url==null) error="أدخل عنوان موقع صالحًا مثل youtube.com أو رابط https."
         else { error="";web.loadUrl(url) }
     }
+    var menu by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize().imePadding()) {
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-            TextButton(onClick=onClose,modifier=Modifier.heightIn(min=48.dp)) { Text("إغلاق المتصفح") }
-            TextButton(onClick={web.reload()},modifier=Modifier.heightIn(min=48.dp)) { Text("تحديث") }
-        }
-        Row(Modifier.padding(horizontal=12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(12.dp),horizontalArrangement=Arrangement.spacedBy(8.dp),
+            verticalAlignment=Alignment.CenterVertically) {
+            IconButton(onClick={ if(web.canGoBack()) web.goBack() else onClose() },
+                modifier=Modifier.size(48.dp).background(Palette.Surface,CircleShape)) {
+                LineIcon(R.drawable.ui_chevron)
+            }
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                 OutlinedTextField(address,{address=it},modifier=Modifier.weight(1f),singleLine=true,
-                    label={Text("عنوان الموقع")},textStyle=MaterialTheme.typography.bodyMedium.copy(textDirection=TextDirection.Ltr),
+                    placeholder={Text(current,color=Palette.Muted)},
+                    textStyle=MaterialTheme.typography.bodyMedium.copy(textDirection=TextDirection.Ltr),
                     keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri,imeAction=ImeAction.Go),
-                    keyboardActions=KeyboardActions(onGo={navigate()}))
+                    keyboardActions=KeyboardActions(onGo={navigate()}),
+                    shape=RoundedCornerShape(24.dp),
+                    colors=OutlinedTextFieldDefaults.colors(unfocusedBorderColor=Palette.Border,
+                        focusedBorderColor=Palette.Accent,unfocusedContainerColor=Palette.Surface))
             }
-            TextButton(onClick={navigate()},modifier=Modifier.heightIn(min=56.dp)) { Text("فتح") }
-        }
-        Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-            TextButton(onClick={web.goBack()},enabled=back,modifier=Modifier.heightIn(min=48.dp)) { Text("السابق") }
-            TextButton(onClick={web.goForward()},enabled=forward,modifier=Modifier.heightIn(min=48.dp)) { Text("التالي") }
+            Box {
+                IconButton(onClick={menu=true},
+                    modifier=Modifier.size(48.dp).background(Palette.Surface,CircleShape)) {
+                    LineIcon(R.drawable.ui_more)
+                }
+                DropdownMenu(expanded=menu,onDismissRequest={menu=false}) {
+                    DropdownMenuItem(text={Text("تحديث")},onClick={menu=false;web.reload()})
+                    DropdownMenuItem(text={Text("إغلاق المتصفح")},onClick={menu=false;onClose()})
+                }
+            }
         }
         if(progress<100) LinearProgressIndicator(progress={progress/100f},modifier=Modifier.fillMaxWidth(),color=Palette.Accent)
         if(error.isNotBlank()) Text(error,modifier=Modifier.padding(12.dp),color=Palette.Text)
         AndroidView(factory={web},modifier=Modifier.fillMaxWidth().weight(1f))
-        Column(Modifier.padding(12.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
-            if(detected.isNotEmpty() && detectedPage==current) {
-                PrimaryButton(if(busy) "جارٍ فحص الفيديو…" else if(detected.size>1) "اختر فيديو للتنزيل (${detected.size})" else "تنزيل الفيديو المكتشف",onClick={
-                    // Never download the previous video's URL after SPA navigation.
-                    if(detectedPage==web.url) {
-                        if(detected.size>1) choosing=true else detected.firstOrNull()?.let { download(it.url) }
+        if(detected.isNotEmpty() && detectedPage==current) {
+            Surface(color=Palette.Surface,shape=RoundedCornerShape(20.dp),
+                border=BorderStroke(1.dp,Palette.Border),modifier=Modifier.fillMaxWidth().padding(12.dp)) {
+                Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically,
+                    horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(4.dp)) {
+                        Text("تم اكتشاف فيديو",style=MaterialTheme.typography.titleMedium)
+                        Text(detected.first().title,maxLines=1,overflow=TextOverflow.Ellipsis,
+                            color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
                     }
-                },enabled=!busy,icon=R.drawable.ui_download)
-                Text("تم اكتشاف فيديو. اضغط لعرض الجودات المتاحة.",style=MaterialTheme.typography.bodySmall,color=Palette.Muted)
-            } else Text(if(protectedVideo) "الفيديو محمي ولا يمكن تنزيله." else
-                "لم يُكتشف فيديو بعد. افتح الفيديو أو شغّله داخل الصفحة.",style=MaterialTheme.typography.bodySmall,color=Palette.Muted)
-        }
+                    Button(onClick={
+                        // Never download the previous video's URL after SPA navigation.
+                        if(detectedPage==web.url) {
+                            if(detected.size>1) choosing=true else detected.firstOrNull()?.let { download(it.url) }
+                        }
+                    },enabled=!busy,shape=RoundedCornerShape(14.dp),
+                        colors=ButtonDefaults.buttonColors(containerColor=Palette.Accent,contentColor=Palette.Background),
+                        contentPadding=PaddingValues(horizontal=24.dp,vertical=10.dp),
+                        modifier=Modifier.heightIn(min=48.dp)) {
+                        Text(if(busy) "جارٍ الفحص…" else if(detected.size>1) "اختر فيديو (${detected.size})" else "تحميل")
+                    }
+                }
+            }
+        } else Text(if(protectedVideo) "الفيديو محمي ولا يمكن تنزيله." else
+            "لم يُكتشف فيديو بعد. افتح الفيديو أو شغّله داخل الصفحة.",
+            style=MaterialTheme.typography.bodySmall,color=Palette.Muted,modifier=Modifier.padding(12.dp))
     }
     if(choosing) AlertDialog(onDismissRequest={choosing=false},title={Text("اختر الفيديو")},
         confirmButton={},dismissButton={TextButton(onClick={choosing=false}) { Text("إلغاء") }},
