@@ -32,7 +32,11 @@ data class Download(val id: String = UUID.randomUUID().toString(), val url: Stri
 class LocalDropApp : Application() {
     lateinit var store: Store; private set
     lateinit var engine: Extractor; private set
-    override fun onCreate() { super.onCreate(); store = Store(this); engine = Extractor(this) }
+    override fun onCreate() {
+        super.onCreate()
+        store = Store(this); engine = Extractor(this)
+        AppAnalytics.setEnabled(this, store.analyticsEnabled)
+    }
 }
 val Context.app: LocalDropApp get() = applicationContext as LocalDropApp
 
@@ -50,7 +54,13 @@ class Store(private val context: Context) {
     var wifiOnly: Boolean
         get() = prefs.getBoolean("wifi", false)
         set(v) { prefs.edit().putBoolean("wifi", v).apply() }
+    /** Firebase Analytics + Crashlytics collection. On by default; the
+     *  user can switch it off in Settings. */
+    var analyticsEnabled: Boolean
+        get() = prefs.getBoolean("analytics", true)
+        set(v) { prefs.edit().putBoolean("analytics", v).apply() }
     @Synchronized fun add(p: Preview, c: Choice) {
+        AppAnalytics.downloadStarted(context, p, c)
         commit(mutable.value + Download(url=p.url, title=p.title, selector=c.selector,
             mp3=c.mp3, fallback=p.fallback, folder=folder,
             thumbnail=p.thumbnail,qualityLabel=c.label,estimatedBytes=c.estimatedBytes))
