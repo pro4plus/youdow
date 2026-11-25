@@ -8,6 +8,12 @@
 - Compiled `LinkRules.kt` and `LinkRulesTest.kt` using Kotlin 2.1.20 outside Gradle and ran JUnit 4.13.2: **4 tests passed** (share-text parsing, rejecting non-web/credential-bearing URLs, exact YouTube host matching, and access-error classification). This does not compile the Android app.
 - Reviewed the manifest, permission gates, scoped storage publication and foreground-service timeout handling against Android documentation.
 
+## v2.0 changes (2026-11-25)
+
+- Package renamed to **com.kbox.localdrop** (applicationId). This is a new app identity: it does NOT update over the 1.9 install (app.localdrop) — uninstall the old app first. Same release keystore, so future 2.x updates install normally. Update the package name in the AdMob app settings too.
+- AdMob interstitial after every download tap (AdMob SDK 25.5.0): App ID in the manifest, ad unit in `AdsManager`. The download always starts — if no ad is loaded or one was shown in the last 90 seconds, it proceeds immediately. Content safety is set in AdMob (max content rating G + sensitive categories blocked).
+- Unit tests: 31 total, all passing locally.
+
 ## v1.9 changes (2026-11-24)
 
 - Root cause of the CNN "No downloadable formats" report: the latest yt-dlp (2026.11.23) extracts the CNN Arabic article fine (one mp4 format), but the phone's bundled extractor was older and the app never retried with a fresh one — it only showed the error. `Extractor.inspect()` now updates the extractor and retries once automatically when no formats are found (`LinkRules.needsExtractorRefresh`).
