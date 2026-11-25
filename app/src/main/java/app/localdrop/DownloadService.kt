@@ -97,13 +97,17 @@ class DownloadService : Service() {
                         val publisher=MediaPublisher(this)
                         val uri=withContext(Dispatchers.IO) { publisher.publish(next,source) }
                         store.change(next.id) { it.copy(status=Status.COMPLETE,progress=100,uri=uri,message="تم الحفظ") }
+                        AppAnalytics.downloadCompleted(this, next)
                         publisher.committed(next.id)
                         withContext(Dispatchers.IO) { directory(next.id).deleteRecursively() }
                     }
                 } catch(e: Exception) {
                     if(e is CancellationException) throw e
-                    if(store.get(next.id)?.status in listOf(Status.RUNNING,Status.SAVING))
+                    if(store.get(next.id)?.status in listOf(Status.RUNNING,Status.SAVING)) {
                         store.change(next.id) { it.copy(status=Status.FAILED,message=LinkRules.reportFor(next.url,e)) }
+                        AppAnalytics.downloadFailed(this, next, e)
+                        AppAnalytics.recordError(this, e)
+                    }
                 } finally {
                     monitor.cancelAndJoin()
                     if(wake?.isHeld == true) wake?.release()
