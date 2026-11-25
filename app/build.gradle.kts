@@ -7,11 +7,11 @@ android {
     namespace = "app.localdrop"
     compileSdk = 35
     defaultConfig {
-        applicationId = "app.localdrop"
+        applicationId = "com.kbox.localdrop"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "1.9-ar"
+        versionCode = 11
+        versionName = "2.0-ar"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86") }
     }
     signingConfigs {
@@ -63,6 +63,7 @@ dependencies {
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.google.android.gms:play-services-ads:25.5.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
 }
