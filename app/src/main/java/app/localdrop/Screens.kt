@@ -80,6 +80,7 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
         val urls = LinkRules.extractAll(text)
         if (urls.isEmpty()) { error = "ألصق رابط فيديو صالحًا يبدأ بـ http أو https."; return }
         if (busy) return
+        AppAnalytics.linkInspected(context, urls.first(), urls.size)
         if (urls.size > 1) {
             // Batch: inspect every link and queue each with the default quality.
             input = urls.joinToString("\n"); preview = null; error = ""; busy = true; sheet = false
@@ -143,6 +144,7 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
                         },enabled=!busy,icon=R.drawable.ui_clipboard)
                         OutlinedButton(onClick={
                             browserStart=BrowserRules.address(input) ?: "https://m.youtube.com"
+                            AppAnalytics.browserOpened(context, browserStart)
                             browser=true
                         },modifier=Modifier.fillMaxWidth().heightIn(min=52.dp),shape=RoundedCornerShape(16.dp),
                             border=BorderStroke(1.dp,Palette.Outline)) {
@@ -337,6 +339,7 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
                         putExtra(android.content.Intent.EXTRA_STREAM, Uri.parse(d.uri))
                         addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                     }
+                    AppAnalytics.fileShared(context, d)
                     context.startActivity(android.content.Intent.createChooser(share, "مشاركة"))
                 },shape=RoundedCornerShape(14.dp),border=BorderStroke(1.dp,Palette.Outline),
                     modifier=Modifier.heightIn(min=48.dp),colors=ButtonDefaults.outlinedButtonColors(contentColor=Palette.Text)) {
