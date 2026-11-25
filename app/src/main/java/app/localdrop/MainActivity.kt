@@ -141,6 +141,16 @@ internal fun Settings() {
         }
     }
     Panel {
+        var analytics by remember { mutableStateOf(store.analyticsEnabled) }
+        Row(Modifier.fillMaxWidth(),verticalAlignment=androidx.compose.ui.Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("تتبع الاستخدام",style=MaterialTheme.typography.titleMedium)
+                Text("إحصاءات مجهولة عبر Firebase (المنصة والجودة فقط، بلا روابط أو عناوين).",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
+            }
+            Switch(analytics,{analytics=it;store.analyticsEnabled=it;AppAnalytics.setEnabled(context,it)},modifier=Modifier.semantics { contentDescription="تتبع الاستخدام" })
+        }
+    }
+    Panel {
         Text("أداة التنزيل",style=MaterialTheme.typography.titleMedium)
         Text("تحديث تلقائي كل 24 ساعة عند الاستخدام، عبر القناة التجريبية.",color=Palette.Muted)
         Text(extractorStatus,style=MaterialTheme.typography.bodySmall)
@@ -149,7 +159,7 @@ internal fun Settings() {
             scope.launch {
                 try {result=context.app.engine.update()}
                 catch(e: Exception) {if(e is kotlinx.coroutines.CancellationException) throw e;result=LinkRules.report(e)}
-                finally {updating=false}
+                finally {updating=false;AppAnalytics.extractorUpdated(context,result)}
             }
         },enabled=!updating,icon=R.drawable.ui_refresh)
         if(result.isNotBlank()) {
@@ -157,7 +167,7 @@ internal fun Settings() {
         }
         Text("إذا تعذر التحديث نستمر بالإصدار الموجود ونحاول لاحقًا. قد تحتوي الإصدارات التجريبية على أخطاء جديدة.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
     }
-    Text("بلا حسابات. يظهر إعلان بعد الضغط على تحميل. لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل دخول.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
+    Text("بلا حسابات. يظهر إعلان بعد الضغط على تحميل، ويُرسل تتبع استخدام مجهول إلى Firebase (يمكن إيقافه من الأعلى). لا ندعم الفيديوهات الخاصة أو المحمية أو التي تتطلب تسجيل دخول.",color=Palette.Muted,style=MaterialTheme.typography.bodySmall)
 }
 
 @Composable
