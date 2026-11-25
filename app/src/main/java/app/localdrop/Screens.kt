@@ -1,5 +1,6 @@
 package app.localdrop
 
+import android.app.Activity
 import android.content.ClipboardManager
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -55,6 +56,13 @@ private fun quality(d: Download)=when {
 internal fun AppScreen(incoming: String,clip: String?,permissionError: String,onClip: (String)->Unit,
                        onDismissClip: ()->Unit,enqueue: (Preview,Choice)->Unit) {
     val context=LocalContext.current
+    // Download entry point: show the interstitial first, then enqueue.
+    // The download always starts, even if no ad is ready.
+    fun startDownload(p: Preview, c: Choice) {
+        val start = { enqueue(p, c) }
+        val act = context as? Activity
+        if (act != null) AdsManager.showAfterDownload(act) { start() } else start()
+    }
     val downloads by context.app.store.items.collectAsStateWithLifecycle()
     val extractorStatus by context.app.engine.updateStatus.collectAsStateWithLifecycle()
     val scope=rememberCoroutineScope()
@@ -202,7 +210,7 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
         contentColor=Palette.Text,scrimColor=Palette.Background.copy(alpha=0.75f),
         dragHandle={ Box(Modifier.padding(top=12.dp,bottom=8.dp).size(40.dp,4.dp).clip(CircleShape).background(Palette.Outline)) }) {
         if(preview != null) QualitySheet(preview!!,context.app.store.quality,
-            onStart={c -> enqueue(preview!!,c);sheet=false;browser=false;tab=1},onCancel={sheet=false})
+            onStart={c -> sheet=false;browser=false;tab=1;startDownload(preview!!,c)},onCancel={sheet=false})
         else Column(Modifier.fillMaxWidth().padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
             if(busy) {
                 CircularProgressIndicator(color=Palette.Accent,strokeWidth=2.dp)
@@ -217,7 +225,8 @@ internal fun AppScreen(incoming: String,clip: String?,permissionError: String,on
                 PrimaryButton("تحميل مباشر بأفضل جودة",{
                     val blind = Preview(input, LinkRules.platformName(input), "", 0,
                         listOf(Choice("best", "أفضل جودة · تلقائي")), false)
-                    enqueue(blind, blind.choices.first()); sheet = false; browser = false; tab = 1
+                    sheet = false; browser = false; tab = 1
+                    startDownload(blind, blind.choices.first())
                 },enabled=!busy)
                 TextButton(onClick={sheet=false;browser=false;tab=2},modifier=Modifier.heightIn(min=48.dp)) { Text("فتح إعدادات أداة التنزيل") }
             }
