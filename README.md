@@ -1,16 +1,18 @@
 # LocalDrop
 
-Native Android video downloader: Kotlin, Jetpack Compose, Android 8.0+ (min SDK 26), compile/target SDK 35. All extraction, downloads, merging and MP3 conversion happen on the phone. There is no application backend, analytics SDK, advertising, account system or cloud storage.
+Native Android video downloader: Kotlin, Jetpack Compose, Android 8.0+ (min SDK 26), compile/target SDK 35. All extraction, downloads, merging and MP3 conversion happen on the phone. There is no application backend, account system or cloud storage. AdMob interstitial ads (v2.0) and Firebase Analytics + Crashlytics (v2.1) are included; see below.
 
 **Supported platforms (v2.0):** YouTube, TikTok, Instagram, Facebook, X, Snapchat, Reddit, Pinterest, Twitch, Vimeo, Dailymotion, SoundCloud, Threads, Telegram, LinkedIn, Bilibili, Rumble, CNN, Al Jazeera, BBC and 1000+ more sites through yt-dlp's generic extractor, plus direct media links (mp4 / webm / mp3 / ...). Short links (youtu.be, vm.tiktok.com, fb.watch, pin.it, dai.ly, ...) and bare pasted domains work, tracking parameters are stripped, and several links can be pasted at once for batch download. Private, login-required, age-restricted, DRM-protected and live streams are not supported — no DRM decryption or login is attempted. Download only media you own or have permission to download.
 
 **Ads (v2.0):** an AdMob interstitial shows after tapping download (at most once every 90 seconds; the download always proceeds). Package is now **com.kbox.localdrop** — a new app identity, so it installs fresh rather than updating the 1.9 (app.localdrop) install.
 
-**Analytics (v2.1):** Firebase Analytics + Crashlytics. Anonymous usage stats only (platform, quality, format — never link URLs or video titles); can be switched off in Settings. Crash reports include non-fatal download failures.
+**Analytics (v2.1):** Firebase Analytics + Crashlytics. Anonymous usage stats only (platform, quality, format — never link URLs or video titles). Crash reports include non-fatal download failures.
+
+**UI redesign + arm64-only (v2.2):** new dark/mint design — 4 bottom tabs (Home, Browser, Downloads, Settings), platform chips on Home, radio-list quality sheet with video/MP3 switch and "recommended" mark, download detail screen (progress ring, speed, ETA, stage pills, pause/cancel, next in queue), search + audio filter in Downloads. Release APK is arm64-v8a only (~65 MB instead of ~207 MB); 32-bit and x86 devices are no longer supported.
 
 **Release signing:** release APKs are signed with a permanent key (alias `localdrop`, RSA 2048, valid to 2051). Only the encrypted `android/release.keystore.enc` is in the repo; CI decrypts it with the `KEYSTORE_PASSPHRASE` secret and signs with `KEYSTORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD`. The plaintext keystore is never committed — keep the backup outside the repo.
 
-**Validation status:** Source implementation supplied. Unit tests (`LinkRules`, `BrowserRules`, `MergeRecovery`, `UpdatePolicy`, `FormatRules`) run in CI on every push (`.github/workflows/build-apk.yml` runs `:app:testDebugUnitTest` before building the debug APK) — 32 tests, all passing locally with Kotlin 2.1.20 + JUnit. The Android app has not been compiled or exercised on a device in the authoring environment, which has Java 8 and no Android SDK. See `VALIDATION.md` for checks and remaining device tests. Do not treat this as a tested release APK.
+**Validation status:** Source implementation supplied. Unit tests (`LinkRules`, `BrowserRules`, `MergeRecovery`, `UpdatePolicy`, `FormatRules`) run in CI on every push (`.github/workflows/build-apk.yml` runs `:app:testDebugUnitTest` before building the debug APK) — 31 tests, all passing locally with Kotlin 2.1.20 + JUnit. The Android app has not been compiled or exercised on a device in the authoring environment, which has Java 8 and no Android SDK. See `VALIDATION.md` for checks and remaining device tests. Do not treat this as a tested release APK.
 
 ## Build step by step
 
