@@ -16,14 +16,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 object Palette {
-    val Background=Color(0xFF11141A)
-    val Surface=Color(0xFF1B2029)
-    val Elevated=Color(0xFF232A36)
-    val Border=Color(0xFF2A3140)
-    val Outline=Color(0xFF3A4354)
+    val Background=Color(0xFF0B0F14)
+    val Surface=Color(0xFF151B24)
+    val Elevated=Color(0xFF1D2632)
+    val Border=Color(0xFF232D3A)
+    val Outline=Color(0xFF39445A)
     val Text=Color(0xFFF2F4F7)
-    val Muted=Color(0xFFA3ABB8)
-    val Accent=Color(0xFFC6F135)
+    val Muted=Color(0xFF8A94A6)
+    val Accent=Color(0xFF3DDC97)
+    val Danger=Color(0xFFFF6B6B)
 }
 private val Plex=FontFamily(
     Font(R.font.plex_arabic_regular,FontWeight.Normal),
