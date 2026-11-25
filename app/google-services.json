@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "979553326534",
+    "project_id": "localdrop-3e57b",
+    "storage_bucket": "localdrop-3e57b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:979553326534:android:6f4c415c5991ad560e4ec7",
+        "android_client_info": {
+          "package_name": "com.kbox.localdrop"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD-Kn_OHfFlFcSzrDI3pQsDHROzWRkgFHA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
