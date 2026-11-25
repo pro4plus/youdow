@@ -63,7 +63,9 @@ dependencies {
     implementation("io.github.junkfood02.youtubedl-android:ffmpeg:0.18.1")
     implementation("com.github.TeamNewPipe:NewPipeExtractor:v0.27.1")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.google.android.gms:play-services-ads:25.5.0")
+    // 25.5.0 needs Kotlin 2.3 metadata; the project is on Kotlin 2.1.20.
+    // 24.9.0 is verified compatible with the 2.1.20 compiler.
+    implementation("com.google.android.gms:play-services-ads:24.9.0")
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
     testImplementation("junit:junit:4.13.2")
 }
