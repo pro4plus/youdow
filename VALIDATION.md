@@ -8,6 +8,11 @@
 - Compiled `LinkRules.kt` and `LinkRulesTest.kt` using Kotlin 2.1.20 outside Gradle and ran JUnit 4.13.2: **4 tests passed** (share-text parsing, rejecting non-web/credential-bearing URLs, exact YouTube host matching, and access-error classification). This does not compile the Android app.
 - Reviewed the manifest, permission gates, scoped storage publication and foreground-service timeout handling against Android documentation.
 
+## v2.1 changes (2026-11-25)
+
+- Firebase Analytics + Crashlytics (BOM 34.2.0: analytics 23.0.0, crashlytics 20.0.1). Auto events (users, sessions, retention, screens) plus custom events: download_started / download_completed / download_failed (platform, quality, format — never URLs or titles), link_inspected, browser_opened, extractor_updated, file_shared. Failed downloads are also recorded as non-fatal Crashlytics errors. Collection can be switched off in Settings (default on). BOM 35.2.0 was NOT usable: its analytics 24.0.0 needs Kotlin 2.4 metadata while the project is on Kotlin 2.1.20 (verified by compiling a probe with the local kotlinc 2.1.20).
+- Unit tests: 31 total, all passing locally.
+
 ## v2.0 changes (2026-11-25)
 
 - Package renamed to **com.kbox.localdrop** (applicationId). This is a new app identity: it does NOT update over the 1.9 install (app.localdrop) — uninstall the old app first. Same release keystore, so future 2.x updates install normally. Update the package name in the AdMob app settings too.
